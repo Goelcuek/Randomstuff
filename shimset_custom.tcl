@@ -2,6 +2,7 @@
 # SHIMSET handling - custom layer   (TURN operations only)
 #  - SHIMSET ops: no spindle start, no coolant on, G94 feed
 #  - Other TURN ops: spindle + coolant ON at start, OFF + G94 at end
+#  - TURN ops: first move of each operation always at F200.
 #  - Anything with mom_machine_mode != TURN: library runs untouched
 #=============================================================================
 
@@ -25,8 +26,10 @@ proc get_next_oper_name {} {
 
 proc SHIMSET_start {} {
   global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
+  global turn_first_move_pending
   set shimset_g94_done 0
   set shimset_turn_op [SHIMSET_is_turn]
+  set turn_first_move_pending $shimset_turn_op
   set shimset_mode [expr {$shimset_turn_op && \
                     [string match -nocase "*SHIMSET*" $mom_operation_name]}]
 }
@@ -112,5 +115,34 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
       return
     }
     return [uplevel 1 [list SHIMSET_orig_LIB_WRITE_coolant {*}$args]]
+  }
+}
+
+#-----------------------------------------------------------------------------
+# TURN: first move of every operation at F200.
+# The library outputs the first move (FIRST_MOVE_TURN) from MOM_linear_move_LIB,
+# so override the feed only on the first call per operation.
+#-----------------------------------------------------------------------------
+set TURN_FIRST_MOVE_FEED 200.0
+
+if {![llength [info commands TURNF_orig_linear_move_LIB]]} {
+  rename MOM_linear_move_LIB TURNF_orig_linear_move_LIB
+  proc MOM_linear_move_LIB {args} {
+    global turn_first_move_pending mom_feed_rate TURN_FIRST_MOVE_FEED
+
+    if {![info exists turn_first_move_pending] || !$turn_first_move_pending} {
+      return [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
+    }
+    set turn_first_move_pending 0
+
+    set had_feed [info exists mom_feed_rate]
+    if {$had_feed} { set saved_feed $mom_feed_rate }
+
+    set mom_feed_rate $TURN_FIRST_MOVE_FEED
+    MOM_force once F
+    set r [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
+
+    if {$had_feed} { set mom_feed_rate $saved_feed }
+    return $r
   }
 }
