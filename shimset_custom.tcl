@@ -122,27 +122,36 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
 # TURN: first move of every operation at F200.
 # The library outputs the first move (FIRST_MOVE_TURN) from MOM_linear_move_LIB,
 # so override the feed only on the first call per operation.
+# TURN_FEED_VARS = the variable(s) used in the F word's Expression in the
+# linear_move_turn block template (check in Post Configurator!).
 #-----------------------------------------------------------------------------
 set TURN_FIRST_MOVE_FEED 200.0
+set TURN_FEED_VARS {feed}
 
 if {![llength [info commands TURNF_orig_linear_move_LIB]]} {
   rename MOM_linear_move_LIB TURNF_orig_linear_move_LIB
   proc MOM_linear_move_LIB {args} {
-    global turn_first_move_pending mom_feed_rate TURN_FIRST_MOVE_FEED
+    global turn_first_move_pending TURN_FIRST_MOVE_FEED TURN_FEED_VARS
 
     if {![info exists turn_first_move_pending] || !$turn_first_move_pending} {
       return [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
     }
     set turn_first_move_pending 0
 
-    set had_feed [info exists mom_feed_rate]
-    if {$had_feed} { set saved_feed $mom_feed_rate }
-
-    set mom_feed_rate $TURN_FIRST_MOVE_FEED
+    # Save + override every feed variable the F word may use
+    set saved {}
+    foreach v $TURN_FEED_VARS {
+      global $v
+      if {[info exists $v]} { dict set saved $v [set $v] }
+      set $v $TURN_FIRST_MOVE_FEED
+    }
     MOM_force once F
     set r [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
 
-    if {$had_feed} { set mom_feed_rate $saved_feed }
+    # Restore
+    foreach v $TURN_FEED_VARS {
+      if {[dict exists $saved $v]} { set $v [dict get $saved $v] }
+    }
     return $r
   }
 }
