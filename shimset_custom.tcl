@@ -1,7 +1,7 @@
 #=============================================================================
 # SHIMSET handling - custom layer
 #  - SHIMSET ops: no spindle start, no coolant on
-#  - Before a SHIMSET op (same tool): stop spindle + coolant via library
+#  - Every other op: spindle + coolant ON at start, OFF at end
 #=============================================================================
 
 #-----------------------------------------------------------------------------
@@ -32,7 +32,12 @@ proc STOP_spindle_coolant {} {
 if {![llength [info commands SHIMSET_orig_start_of_path]]} {
   rename MOM_start_of_path SHIMSET_orig_start_of_path
   proc MOM_start_of_path {} {
+    global shimset_mode
     SHIMSET_start
+    if {!$shimset_mode} {
+      # Guarantee M8 on the first coolant call, even if M_coolant looks modal
+      MOM_force once M_coolant
+    }
     SHIMSET_orig_start_of_path
   }
 }
@@ -45,10 +50,10 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     SHIMSET_orig_end_of_path
 
     # Library already stops spindle/coolant on tool/MCS change.
-    # Only stop here when the tool stays AND next op is a SHIMSET.
+    # Otherwise stop them ourselves after every cutting (non-SHIMSET) op.
     set tc [expr {[info exists mom_next_oper_has_tool_change] \
                   ? $mom_next_oper_has_tool_change : "YES"}]
-    if {$tc eq "NO" && [string match -nocase "*SHIMSET*" [get_next_oper_name]]} {
+    if {!$shimset_mode && $tc eq "NO"} {
       STOP_spindle_coolant
     }
 
