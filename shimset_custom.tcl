@@ -34,7 +34,10 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
   proc MOM_start_of_path {} {
     global shimset_mode
     SHIMSET_start
-    if {!$shimset_mode} {
+    if {$shimset_mode} {
+      # Block M8 from ANY template during shimset (e.g. initial_move_turn)
+      MOM_disable_address M_coolant
+    } else {
       # Guarantee M8 on the first coolant call, even if M_coolant looks modal
       MOM_force once M_coolant
     }
@@ -48,6 +51,10 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     global mom_next_oper_has_tool_change shimset_mode
 
     SHIMSET_orig_end_of_path
+
+    if {$shimset_mode} {
+      MOM_enable_address M_coolant
+    }
 
     # Library already stops spindle/coolant on tool/MCS change.
     # Otherwise stop them ourselves after every cutting (non-SHIMSET) op.
