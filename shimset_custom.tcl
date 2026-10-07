@@ -24,7 +24,8 @@ proc get_next_oper_name {} {
 }
 
 proc SHIMSET_start {} {
-  global mom_operation_name shimset_mode shimset_turn_op
+  global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
+  set shimset_g94_done 0
   set shimset_turn_op [SHIMSET_is_turn]
   set shimset_mode [expr {$shimset_turn_op && \
                     [string match -nocase "*SHIMSET*" $mom_operation_name]}]
@@ -89,10 +90,13 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
 if {![llength [info commands SHIMSET_orig_LIB_SPINDLE_start]]} {
   rename LIB_SPINDLE_start SHIMSET_orig_LIB_SPINDLE_start
   proc LIB_SPINDLE_start {args} {
-    global shimset_mode
+    global shimset_mode shimset_g94_done
     if {[info exists shimset_mode] && $shimset_mode} {
-      # No spindle in shimset: make sure feed is per minute, not per rev
-      MOM_output_literal "G94"
+      # Library calls this on every move -> output G94 only once per op
+      if {![info exists shimset_g94_done] || !$shimset_g94_done} {
+        MOM_output_literal "G94"
+        set shimset_g94_done 1
+      }
       return
     }
     return [uplevel 1 [list SHIMSET_orig_LIB_SPINDLE_start {*}$args]]
