@@ -8,6 +8,7 @@
 #  - TURN GAGECUT ops (not SHIMSET): wear offset tolerance check at the very
 #    end of the operation, tolerances from the torna_offset_kontrol UDE
 #  - TURN ops: safety line (G90 G94 G40 G700) at start of every operation
+#  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
 #  - Anything with mom_machine_mode != TURN: library runs untouched
 #=============================================================================
 
@@ -272,4 +273,49 @@ proc GAGE_output_wear_check {} {
   GAGE_output_axis X $GAGE_WEAR_DP_X $gage_tol_x
   GAGE_output_axis Z $GAGE_WEAR_DP_Z $gage_tol_z
   MOM_output_literal "MSG()"
+}
+
+#-----------------------------------------------------------------------------
+# INSERT (MOM_insert) text -> SINUMERIK 840D sl syntax   (all operations)
+#  Programmers type Fanuc-style text in NX "Insert" commands. Convert:
+#    M00(MSG,text) / M0(MSG,text)  ->  MSG("text") / M0 / MSG()
+#    M01(MSG,text) / M1(MSG,text)  ->  MSG("text") / M1 / MSG()
+#    (MSG,text)                    ->  MSG("text")
+#    (any comment)                 ->  ; any comment
+#  Anything else is passed through unchanged.
+#-----------------------------------------------------------------------------
+proc INSERT_to_840d {txt} {
+  set t [string trim $txt]
+
+  # M0 / M00 / M1 / M01 followed by (MSG, ...)
+  if {[regexp -nocase {^M0*([01])\s*\(\s*MSG\s*,\s*(.*)\)\s*$} $t -> mcode msg]} {
+    set msg [string map {"\"" "'"} [string trim $msg]]
+    return [list "MSG(\"$msg\")" "M$mcode" "MSG()"]
+  }
+  # (MSG, ...) without stop -> message only
+  if {[regexp -nocase {^\(\s*MSG\s*,\s*(.*)\)\s*$} $t -> msg]} {
+    set msg [string map {"\"" "'"} [string trim $msg]]
+    return [list "MSG(\"$msg\")"]
+  }
+  # Plain Fanuc comment (text) -> ; text
+  if {[regexp {^\((.*)\)$} $t -> cmt]} {
+    return [list "; [string trim $cmt]"]
+  }
+  return {}   ;# no conversion
+}
+
+if {[llength [info commands MOM_insert]] && \
+    ![llength [info commands INSERT_orig_MOM_insert]]} {
+  rename MOM_insert INSERT_orig_MOM_insert
+  proc MOM_insert {} {
+    global mom_Instruction
+    if {[info exists mom_Instruction]} {
+      set lines [INSERT_to_840d $mom_Instruction]
+      if {[llength $lines]} {
+        foreach l $lines { MOM_output_literal $l }
+        return
+      }
+    }
+    INSERT_orig_MOM_insert
+  }
 }
