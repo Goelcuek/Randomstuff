@@ -7,6 +7,7 @@
 #    (removed from spindle stop, so mid-op M0 stops don't send it home)
 #  - TURN GAGECUT ops (not SHIMSET): wear offset tolerance check at the very
 #    end of the operation, tolerances from the torna_offset_kontrol UDE
+#  - TURN ops: safety line (G90 G94 G40 G700) at start of every operation
 #  - Anything with mom_machine_mode != TURN: library runs untouched
 #=============================================================================
 
@@ -45,6 +46,13 @@ proc STOP_spindle_coolant {} {
 }
 
 #-----------------------------------------------------------------------------
+# Safety line for every TURN operation start
+#  G90  absolute     G94  feed per minute (safe while spindle may be off)
+#  G40  cancel tool nose radius comp     G700 inch, incl. feeds
+#-----------------------------------------------------------------------------
+set TURN_SAFETY_LINE "G90 G94 G40 G700"
+
+#-----------------------------------------------------------------------------
 # Event wrappers (each event wrapped ONCE)
 #-----------------------------------------------------------------------------
 if {![llength [info commands SHIMSET_orig_start_of_path]]} {
@@ -63,6 +71,12 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
       MOM_force once G_spin
     }
     SHIMSET_orig_start_of_path
+
+    # Safety line at the start of every TURN operation (incl. SHIMSET)
+    if {$shimset_turn_op} {
+      global TURN_SAFETY_LINE
+      MOM_output_literal $TURN_SAFETY_LINE
+    }
   }
 }
 
