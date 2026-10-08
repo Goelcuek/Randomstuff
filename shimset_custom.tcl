@@ -3,7 +3,7 @@
 #  - SHIMSET ops: no spindle start, no coolant on, G94 feed
 #  - Other TURN ops: spindle + coolant ON at start, OFF + G94 at end
 #  - TURN ops: first move at F200 (called from the FIRST_MOVE_TURN prepend)
-#  - Every op (MILL + TURN): L_M54 once at end of operation
+#  - Every op (MILL + TURN) except SHIMSET: L_M54 once at end of operation
 #    (removed from spindle stop, so mid-op M0 stops don't send it home)
 #  - TURN GAGECUT ops (not SHIMSET): wear offset tolerance check at the very
 #    end of the operation, tolerances from the torna_offset_kontrol UDE
@@ -86,7 +86,10 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     }
 
     # Home / reset at the end of every operation (after M9/M5)
-    MOM_output_literal "L_M54"
+    # - not after SHIMSET ops (tool stays at the part for the following cut)
+    if {!$shimset_mode} {
+      MOM_output_literal "L_M54"
+    }
 
     # Wear offset tolerance check - TURN GAGECUT ops only, after everything
     global mom_operation_name
