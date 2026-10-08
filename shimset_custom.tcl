@@ -2,7 +2,7 @@
 # SHIMSET handling - custom layer   (TURN operations only)
 #  - SHIMSET ops: no spindle start, no coolant on, G94 feed
 #  - Other TURN ops: spindle + coolant ON at start, OFF + G94 at end
-#  - TURN ops: first move of each operation always at F200.
+#  - TURN ops: first move at F200 (called from the FIRST_MOVE_TURN prepend)
 #  - Every op (MILL + TURN): L_M54 once at end of operation
 #    (removed from spindle stop, so mid-op M0 stops don't send it home)
 #  - TURN GAGECUT ops (not SHIMSET): wear offset tolerance check at the very
@@ -30,11 +30,9 @@ proc get_next_oper_name {} {
 
 proc SHIMSET_start {} {
   global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
-  global turn_first_move_pending
   set shimset_g94_done 0
   GAGE_reset
   set shimset_turn_op [SHIMSET_is_turn]
-  set turn_first_move_pending $shimset_turn_op
   set shimset_mode [expr {$shimset_turn_op && \
                     [string match -nocase "*SHIMSET*" $mom_operation_name]}]
 }
@@ -134,41 +132,25 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
 }
 
 #-----------------------------------------------------------------------------
-# TURN: first move of every operation at F200.
-# The library outputs the first move (FIRST_MOVE_TURN) from MOM_linear_move_LIB,
-# so override the feed only on the first call per operation.
-# TURN_FEED_VARS = the variable(s) used in the F word's Expression in the
+# TURN: first/initial move of every operation at F200.
+# NOT a rename-wrapper: renaming MOM_linear_move_LIB broke the command buffer
+# edits keyed to it (CYCLE800_turn / force Y). Call TURN_first_move_feed from
+# your existing  LIB_GE_command_buffer_edit_prepend MOM_linear_move_LIB
+# FIRST_MOVE_TURN  block instead. The library recomputes the feed on every
+# move, so no restore is needed afterwards.
+# TURN_FEED_VARS = variable(s) used in the F word's Expression in the
 # linear_move_turn block template (check in Post Configurator!).
 #-----------------------------------------------------------------------------
 set TURN_FIRST_MOVE_FEED 200.0
 set TURN_FEED_VARS {feed}
 
-if {![llength [info commands TURNF_orig_linear_move_LIB]]} {
-  rename MOM_linear_move_LIB TURNF_orig_linear_move_LIB
-  proc MOM_linear_move_LIB {args} {
-    global turn_first_move_pending TURN_FIRST_MOVE_FEED TURN_FEED_VARS
-
-    if {![info exists turn_first_move_pending] || !$turn_first_move_pending} {
-      return [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
-    }
-    set turn_first_move_pending 0
-
-    # Save + override every feed variable the F word may use
-    set saved {}
-    foreach v $TURN_FEED_VARS {
-      global $v
-      if {[info exists $v]} { dict set saved $v [set $v] }
-      set $v $TURN_FIRST_MOVE_FEED
-    }
-    MOM_force once F
-    set r [uplevel 1 [list TURNF_orig_linear_move_LIB {*}$args]]
-
-    # Restore
-    foreach v $TURN_FEED_VARS {
-      if {[dict exists $saved $v]} { set $v [dict get $saved $v] }
-    }
-    return $r
+proc TURN_first_move_feed {} {
+  global TURN_FIRST_MOVE_FEED TURN_FEED_VARS
+  foreach v $TURN_FEED_VARS {
+    global $v
+    set $v $TURN_FIRST_MOVE_FEED
   }
+  MOM_force once F
 }
 
 #-----------------------------------------------------------------------------
