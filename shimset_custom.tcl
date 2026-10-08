@@ -32,6 +32,7 @@ proc get_next_oper_name {} {
 proc SHIMSET_start {} {
   global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
   set shimset_g94_done 0
+  TURN_first_move_restore
   GAGE_reset
   set shimset_turn_op [SHIMSET_is_turn]
   set shimset_mode [expr {$shimset_turn_op && \
@@ -140,6 +141,7 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
   rename LIB_WRITE_coolant SHIMSET_orig_LIB_WRITE_coolant
   proc LIB_WRITE_coolant {args} {
     global shimset_mode
+    TURN_first_move_restore   ;# undo F200 override right after the first move
     if {[info exists shimset_mode] && $shimset_mode \
         && [lindex $args 0] eq "on"} {
       return
@@ -150,24 +152,51 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
 
 #-----------------------------------------------------------------------------
 # TURN: first/initial move of every operation at F200.
-# NOT a rename-wrapper: renaming MOM_linear_move_LIB broke the command buffer
-# edits keyed to it (CYCLE800_turn / force Y). Call TURN_first_move_feed from
-# your existing  LIB_GE_command_buffer_edit_prepend MOM_linear_move_LIB
-# FIRST_MOVE_TURN  block instead. The library recomputes the feed on every
-# move, so no restore is needed afterwards.
-# TURN_FEED_VARS = variable(s) used in the F word's Expression in the
-# linear_move_turn block template (check in Post Configurator!).
+# Called from your  LIB_GE_command_buffer_edit_prepend MOM_linear_move_LIB
+# FIRST_MOVE_TURN  block (runs right before the first move is written).
+#
+# We don't know which variable the F word reads, so: every global with
+# "feed" in its name that currently holds the first move's feed value
+# (e.g. 30) is set to 200, then restored right after the move is written
+# (in the COOLANT_ON step that follows FIRST_MOVE_TURN).
+# TURN_FEED_DEBUG 1 writes a comment listing the variables it changed.
 #-----------------------------------------------------------------------------
 set TURN_FIRST_MOVE_FEED 200.0
-set TURN_FEED_VARS {feed}
+set TURN_FEED_DEBUG 1
+set turn_feed_saved {}
 
 proc TURN_first_move_feed {} {
-  global TURN_FIRST_MOVE_FEED TURN_FEED_VARS
-  foreach v $TURN_FEED_VARS {
-    global $v
-    set $v $TURN_FIRST_MOVE_FEED
+  global mom_feed_rate TURN_FIRST_MOVE_FEED TURN_FEED_DEBUG turn_feed_saved
+  TURN_first_move_restore
+  if {![info exists mom_feed_rate] || ![string is double -strict $mom_feed_rate]} {
+    return
+  }
+  set orig $mom_feed_rate
+  set changed {}
+  foreach v [info globals] {
+    if {![string match -nocase "*feed*" $v]} { continue }
+    upvar #0 $v val
+    if {[array exists val] || ![info exists val]} { continue }
+    if {![string is double -strict $val]} { continue }
+    if {abs($val - $orig) > 1e-6} { continue }
+    dict set turn_feed_saved $v $val
+    set val $TURN_FIRST_MOVE_FEED
+    lappend changed $v
   }
   MOM_force once F
+  if {$TURN_FEED_DEBUG} {
+    MOM_output_literal ";F200 DEBUG orig=$orig vars=$changed"
+  }
+}
+
+proc TURN_first_move_restore {} {
+  global turn_feed_saved
+  if {![info exists turn_feed_saved]} { return }
+  dict for {v val} $turn_feed_saved {
+    upvar #0 $v ref
+    set ref $val
+  }
+  set turn_feed_saved {}
 }
 
 #-----------------------------------------------------------------------------
