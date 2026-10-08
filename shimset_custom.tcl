@@ -3,6 +3,8 @@
 #  - SHIMSET ops: no spindle start, no coolant on, G94 feed
 #  - Other TURN ops: spindle + coolant ON at start, OFF + G94 at end
 #  - TURN ops: first move of each operation always at F200.
+#  - Every op (MILL + TURN): L_M54 once at end of operation
+#    (removed from spindle stop, so mid-op M0 stops don't send it home)
 #  - Anything with mom_machine_mode != TURN: library runs untouched
 #=============================================================================
 
@@ -81,6 +83,9 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     if {$shimset_turn_op && !$shimset_mode && $tc eq "NO"} {
       STOP_spindle_coolant
     }
+
+    # Home / reset at the end of every operation (after M9/M5)
+    MOM_output_literal "L_M54"
 
     set shimset_mode    0
     set shimset_turn_op 0
