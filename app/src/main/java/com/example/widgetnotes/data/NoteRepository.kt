@@ -2,6 +2,7 @@ package com.example.widgetnotes.data
 
 import android.content.Context
 import androidx.glance.appwidget.updateAll
+import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.widget.NotesWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,11 +12,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 /**
- * Single source of truth for notes, shared by the app and the widget.
- * Notes live in a small JSON file in app storage; every change refreshes the widget.
+ * Single source of truth for notes, shared by the app, the widget and reminders.
+ * Everything (including the undo slot) is saved to a JSON file, so state survives
+ * the system killing the app in the background.
  */
 object NoteRepository {
     private const val FILE_NAME = "notes.json"
@@ -34,35 +37,55 @@ object NoteRepository {
     fun get(context: Context, id: Long): Note? =
         state(context).value.notes.firstOrNull { it.id == id }
 
-    suspend fun save(context: Context, id: Long?, title: String, body: String) {
+    suspend fun save(
+        context: Context,
+        id: Long?,
+        title: String,
+        body: String,
+        images: List<String>,
+        remindAt: Long?,
+    ) {
         val t = title.trim()
         val b = body.trim()
         val existing = id?.let { get(context, it) }
 
-        // Blank new note → nothing to save. Blank existing note → delete it.
-        if (t.isEmpty() && b.isEmpty()) {
+        // Nothing left in the note → delete it (or don't create it).
+        if (t.isEmpty() && b.isEmpty() && images.isEmpty()) {
             if (existing != null) delete(context, existing.id)
             return
         }
-        if (existing != null && existing.title == t && existing.body == b) return
 
         mutate(context) { s ->
             val now = System.currentTimeMillis()
             val notes = if (existing != null) {
-                s.notes.map { if (it.id == existing.id) it.copy(title = t, body = b, updatedAt = now) else it }
+                s.notes.update(existing.id) {
+                    val contentChanged = it.title != t || it.body != b || it.images != images
+                    it.copy(
+                        title = t, body = b, images = images, remindAt = remindAt,
+                        updatedAt = if (contentChanged) now else it.updatedAt,
+                    )
+                }
             } else {
-                s.notes + Note(id = now, title = t, body = b, updatedAt = now)
+                s.notes + Note(id = now, title = t, body = b, images = images, remindAt = remindAt, updatedAt = now)
             }
             s.copy(notes = notes, recentlyDeleted = null)
         }
     }
 
     suspend fun toggleDone(context: Context, id: Long) = mutate(context) { s ->
-        s.copy(notes = s.notes.map { if (it.id == id) it.copy(done = !it.done) else it }, recentlyDeleted = null)
+        s.copy(notes = s.notes.update(id) { it.copy(done = !it.done) }, recentlyDeleted = null)
+    }
+
+    suspend fun setDone(context: Context, id: Long, done: Boolean) = mutate(context) { s ->
+        s.copy(notes = s.notes.update(id) { it.copy(done = done) })
     }
 
     suspend fun togglePinned(context: Context, id: Long) = mutate(context) { s ->
-        s.copy(notes = s.notes.map { if (it.id == id) it.copy(pinned = !it.pinned) else it }, recentlyDeleted = null)
+        s.copy(notes = s.notes.update(id) { it.copy(pinned = !it.pinned) }, recentlyDeleted = null)
+    }
+
+    suspend fun clearReminder(context: Context, id: Long) = mutate(context) { s ->
+        s.copy(notes = s.notes.update(id) { it.copy(remindAt = null) })
     }
 
     suspend fun delete(context: Context, id: Long) = mutate(context) { s ->
@@ -75,26 +98,35 @@ object NoteRepository {
         s.copy(notes = s.notes + note, recentlyDeleted = null)
     }
 
-    suspend fun dismissUndo(context: Context) {
-        if (state(context).value.recentlyDeleted == null) return
-        mutate(context) { it.copy(recentlyDeleted = null) }
-    }
+    suspend fun dismissUndo(context: Context) = mutate(context) { it.copy(recentlyDeleted = null) }
 
     // ---------------------------------------------------------------------
+
+    private fun List<Note>.update(id: Long, f: (Note) -> Note) = map { if (it.id == id) f(it) else it }
 
     private suspend fun mutate(context: Context, block: (NotesState) -> NotesState) {
         val app = context.applicationContext
         load(app)
-        mutex.withLock {
+        val (before, after) = mutex.withLock {
             val before = _state.value
-            val next = block(before)
-            if (next == before) return
-            val sorted = next.copy(notes = sort(next.notes))
-            _state.value = sorted
-            withContext(Dispatchers.IO) { write(app, sorted.notes) }
+            val after = block(before).let { it.copy(notes = sort(it.notes)) }
+            if (after != before) {
+                _state.value = after
+                withContext(Dispatchers.IO) { write(app, after) }
+            }
+            before to after
         }
-        // Push the new content to every placed widget (covers the case where
-        // the widget's live session has ended and it is showing a snapshot).
+
+        // A note that leaves the undo slot for good takes its photos with it.
+        val trashed = before.recentlyDeleted
+        if (trashed != null && trashed != after.recentlyDeleted && after.notes.none { it.id == trashed.id }) {
+            ImageStore.delete(app, trashed.images)
+        }
+
+        Reminders.sync(app, before.notes, after.notes)
+
+        // Always push to the widget, even if nothing changed, so a stale widget
+        // (e.g. after the app was killed) is refreshed on any tap.
         NotesWidget().updateAll(app)
     }
 
@@ -102,22 +134,33 @@ object NoteRepository {
     private fun load(context: Context) {
         if (loaded) return
         val file = File(context.filesDir, FILE_NAME)
-        val notes = if (file.exists()) {
+        _state.value = if (file.exists()) {
             runCatching {
-                val arr = JSONArray(file.readText())
-                List(arr.length()) { Note.fromJson(arr.getJSONObject(it)) }
-            }.getOrDefault(emptyList())
+                val text = file.readText().trim()
+                if (text.startsWith("[")) {
+                    NotesState(sort(parseNotes(JSONArray(text)))) // old format
+                } else {
+                    val o = JSONObject(text)
+                    NotesState(
+                        notes = sort(parseNotes(o.optJSONArray("notes") ?: JSONArray())),
+                        recentlyDeleted = o.optJSONObject("trash")?.let { Note.fromJson(it) },
+                    )
+                }
+            }.getOrDefault(NotesState())
         } else {
-            welcomeNotes()
+            NotesState(sort(welcomeNotes()))
         }
-        _state.value = NotesState(sort(notes))
         loaded = true
     }
 
-    private fun write(context: Context, notes: List<Note>) {
-        val arr = JSONArray().apply { notes.forEach { put(it.toJson()) } }
+    private fun parseNotes(arr: JSONArray) = List(arr.length()) { Note.fromJson(arr.getJSONObject(it)) }
+
+    private fun write(context: Context, state: NotesState) {
+        val o = JSONObject()
+            .put("notes", JSONArray().apply { state.notes.forEach { put(it.toJson()) } })
+            .apply { state.recentlyDeleted?.let { put("trash", it.toJson()) } }
         val tmp = File(context.filesDir, "$FILE_NAME.tmp")
-        tmp.writeText(arr.toString())
+        tmp.writeText(o.toString())
         tmp.renameTo(File(context.filesDir, FILE_NAME)) // atomic replace
     }
 
@@ -131,8 +174,7 @@ object NoteRepository {
         val now = System.currentTimeMillis()
         return listOf(
             Note(now, "Welcome 👋", "Long-press your home screen → Widgets → Widget Notes. Stretch it to fill the screen.", pinned = true, updatedAt = now),
-            Note(now - 1, "Try the widget", "Tick the box, tap the pin, tap the bin, or tap a note to edit it right on the home screen.", updatedAt = now - 1),
-            Note(now - 2, "Done notes sink to the bottom", "Use the All / Open / Done tabs to filter.", done = true, updatedAt = now - 2),
+            Note(now - 1, "Try the widget", "Tap 'Write a note…' to type, or the camera button to snap a photo note. Tap a note to add a reminder.", updatedAt = now - 1),
         )
     }
 }

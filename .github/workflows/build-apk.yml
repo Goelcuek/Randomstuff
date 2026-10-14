@@ -21,11 +21,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       - name: Build debug APK
+        shell: bash
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon 2>&1 | tee build.log
           cp app/build/outputs/apk/debug/app-debug.apk WidgetNotes.apk
+
+      - name: Report build errors
+        if: failure()
+        shell: bash
+        run: |
+          grep -E "^e: |error:|ERROR:|What went wrong|Could not resolve|> " build.log | grep -v "^> Task" | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done
 
       - uses: actions/upload-artifact@v4
         with:

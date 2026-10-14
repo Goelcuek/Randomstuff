@@ -9,12 +9,13 @@ An Android note-taking app whose home-screen widget can fill the whole screen an
 4. Drag the widget's resize handles to the screen edges to make it full screen.
 
 ## What you can do on the widget (without opening the app)
-- Scroll through all notes
+- Scroll through all notes (AMOLED black design)
 - Tick a note done / not done (done notes get struck through and sink to the bottom)
 - Pin / unpin (pinned notes float to the top, highlighted)
-- Delete, with an **Undo** banner
+- Delete, with an **Undo** banner (tap X or the banner to dismiss)
 - Filter with **All / Open / Done** tabs (remembered per widget)
-- Tap **+** or **Write a note…** to type a new note, or tap any note to edit it — a floating editor opens over the home screen; tap outside or press Back to save
+- Tap **Write a note…** to type a new note, the **camera** button for a photo note, or any note to edit it — a floating editor opens over the home screen; tap outside or press Back to save
+- In the editor: take photos, attach from gallery, set a **reminder** (presets or any date/time) — it pops up as a notification with a *Mark done* button
 
 ## Structure
 - `data/NoteRepository.kt` — single source of truth (JSON file in app storage), refreshes the widget on every change
