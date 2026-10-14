@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Widget Notes</string>
+    <string name="widget_name">Notes (full screen)</string>
+    <string name="widget_description">Your notes on the home screen. Check off, pin, delete, filter and write — without opening the app.</string>
+</resources>
