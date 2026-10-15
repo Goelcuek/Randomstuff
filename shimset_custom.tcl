@@ -5,11 +5,13 @@
 #  - TURN ops: first move at F200 (called from the FIRST_MOVE_TURN prepend)
 #  - Every op (MILL + TURN) except SHIMSET: L_M54 once at end of operation
 #    (removed from spindle stop, so mid-op M0 stops don't send it home)
-#  - TURN GAGECUT ops (not SHIMSET): wear offset tolerance check at the very
-#    end of the operation, tolerances from the torna_offset_kontrol UDE
-#  - TURN ops: safety line (G90 G94 G40 G700) at start of every operation
+#  - GAGECUT ops (not SHIMSET): wear offset tolerance check at the very end
+#    of the operation, tolerances from the torna_offset_kontrol UDE
+#      TURN: X and Z wear (tolerances from the UDE)
+#      MILL: radius and Z (length) wear, fixed tolerance 0.004
+#  - TURN ops: safety lines (ROT / G90 G94 G40 G700) at start of every operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
-#  - Anything with mom_machine_mode != TURN: library runs untouched
+#  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
 
 #-----------------------------------------------------------------------------
@@ -48,11 +50,19 @@ proc STOP_spindle_coolant {} {
 }
 
 #-----------------------------------------------------------------------------
-# Safety line for every TURN operation start
-#  G90  absolute     G94  feed per minute (safe while spindle may be off)
-#  G40  cancel tool nose radius comp     G700 inch, incl. feeds
+# Safety lines at the start of every TURN operation (one block per list entry)
+# (milling uses its own safety routine)
+#  ROT     cancel programmable frames (akilli AROT, any leftover TRANS/ROT)
+#          - frame commands need their own block
+#  G90     absolute
+#  G94     feed per minute; also cancels G96/G961 (same G group - do NOT
+#          put G97 in the same block)
+#  G40     cancel cutter / tool nose radius compensation
+#  G700    inch, incl. feeds
+#  TRAFOOF / CYCLE800() are deliberately NOT here: the library may keep a
+#  swivel or TRAORI active across operations and not re-output it.
 #-----------------------------------------------------------------------------
-set TURN_SAFETY_LINE "G90 G94 G40 G700"
+set TURN_SAFETY_LINES {"ROT" "G90 G94 G40 G700"}
 
 #-----------------------------------------------------------------------------
 # Event wrappers (each event wrapped ONCE)
@@ -74,10 +84,11 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
     }
     SHIMSET_orig_start_of_path
 
-    # Safety line at the start of every TURN operation (incl. SHIMSET)
+    # Safety lines at the start of every TURN operation (incl. SHIMSET)
+    # (milling has its own safety routine)
     if {$shimset_turn_op} {
-      global TURN_SAFETY_LINE
-      MOM_output_literal $TURN_SAFETY_LINE
+      global TURN_SAFETY_LINES
+      foreach l $TURN_SAFETY_LINES { MOM_output_literal $l }
     }
   }
 }
@@ -107,11 +118,12 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
       MOM_output_literal "L_M54"
     }
 
-    # Wear offset tolerance check - TURN GAGECUT ops only, after everything
+    # Wear offset tolerance check - GAGECUT ops (TURN and MILL), not SHIMSET,
+    # after everything else
     global mom_operation_name
-    if {$shimset_turn_op && !$shimset_mode && \
+    if {![string match -nocase "*SHIMSET*" $mom_operation_name] && \
         [string match -nocase "*GAGECUT*" $mom_operation_name]} {
-      GAGE_output_wear_check
+      GAGE_output_wear_check [expr {$shimset_turn_op ? "TURN" : "MILL"}]
     }
 
     set shimset_mode    0
@@ -215,6 +227,14 @@ set GAGE_WEAR_DP_X 12
 set GAGE_WEAR_DP_Z 13
 set gage_label_count 0
 
+# MILL (G17 milling tool): length 1 wear = Z, radius wear
+#   SINUMERIK: $TC_DP12 = wear length 1, $TC_DP15 = wear radius
+# Tolerances: fixed values, no UDE (always checked in MILL GAGECUT ops)
+set GAGE_MILL_DP_Z 12
+set GAGE_MILL_DP_R 15
+set GAGE_MILL_TOL_R 0.004
+set GAGE_MILL_TOL_Z 0.004
+
 proc GAGE_reset {} {
   global gage_tol_x gage_tol_z
   set gage_tol_x ""
@@ -259,19 +279,27 @@ proc GAGE_output_axis {axis dp tol} {
 
   MOM_output_literal "${lbl}:"
   MOM_output_literal "IF ABS(${var})>${t}"
-  MOM_output_literal "MSG(\"${axis} ASINMA OFSETI TOLERANS DISI (+/-${t}) - KONTROL ET\")"
+  set name [expr {$axis eq "R" ? "RADYUS" : $axis}]
+  MOM_output_literal "MSG(\"${name} ASINMA OFSETI TOLERANS DISI (+/-${t}) - KONTROL ET\")"
   MOM_output_literal "M0"
   MOM_output_literal "GOTOB ${lbl}"
   MOM_output_literal "ENDIF"
 }
 
-proc GAGE_output_wear_check {} {
+proc GAGE_output_wear_check {{mode TURN}} {
   global gage_tol_x gage_tol_z GAGE_WEAR_DP_X GAGE_WEAR_DP_Z
-  if {$gage_tol_x eq "" && $gage_tol_z eq ""} { return }   ;# no UDE in this op
+  global GAGE_MILL_DP_Z GAGE_MILL_DP_R GAGE_MILL_TOL_R GAGE_MILL_TOL_Z
 
-  MOM_output_literal ";*** ASINMA OFSET TOLERANS KONTROLU ***"
-  GAGE_output_axis X $GAGE_WEAR_DP_X $gage_tol_x
-  GAGE_output_axis Z $GAGE_WEAR_DP_Z $gage_tol_z
+  if {$mode eq "MILL"} {
+    MOM_output_literal ";*** ASINMA OFSET TOLERANS KONTROLU ***"
+    GAGE_output_axis R $GAGE_MILL_DP_R $GAGE_MILL_TOL_R
+    GAGE_output_axis Z $GAGE_MILL_DP_Z $GAGE_MILL_TOL_Z
+  } else {
+    if {$gage_tol_x eq "" && $gage_tol_z eq ""} { return }   ;# no UDE in this op
+    MOM_output_literal ";*** ASINMA OFSET TOLERANS KONTROLU ***"
+    GAGE_output_axis X $GAGE_WEAR_DP_X $gage_tol_x
+    GAGE_output_axis Z $GAGE_WEAR_DP_Z $gage_tol_z
+  }
   MOM_output_literal "MSG()"
 }
 
