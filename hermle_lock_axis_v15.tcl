@@ -7,7 +7,10 @@
 #         after TRAORI          ->  AROT Z=R20
 #         before TRAFOOF / CYCLE800 / end of path  ->  ROT
 #       Detected in literals and in template output; never stacked twice.
-#       Requires G54 X/Y on the C centerline.
+#       The copies rotate around the active work offset origin (G54 X0 Y0),
+#       which therefore has to be the pattern center of the part. The C axis
+#       position itself does not matter here (TRAORI/CYCLE800 use the
+#       kinematics); only Lock Axis needs G54 on the C centerline.
 #
 # v14 - the library re-enables fifth_axis on its own (rotary handling), which
 #       brought the plain C back next to C=DC(). MOM_enable_address /
@@ -87,6 +90,7 @@ set CUS_akilli_event  MOM_tei_akilli_prg ;# UDE that sets mom_akilli
 set CUS_akilli_arot   "AROT Z=R20" ;# written after TRAORI in akilli operations
 set CUS_akilli_per_op 1      ;# 1: akilli ends with each operation (reset at end of path)
                              ;# 0: akilli stays on until the UDE sets mom_akilli to 0
+set CUS_decimals      3      ;# decimals for the C word (and the C rounding)
 set CUS_max_step_deg  2.0    ;# max C change per subdivided block
 set CUS_max_split     2000   ;# max blocks per CL move
 set CUS_default_tol   0.0005 ;# used if mom_kin_linearization_tol is missing (part units)
@@ -136,7 +140,7 @@ proc CUS_fail {msg} {
 
 # ------------------------------------------------------------------- helpers
 proc CUS_fmt {v} {
-    set s [format "%.4f" $v]
+    set s [format "%.${::CUS_decimals}f" $v]
     if {[string first . $s] >= 0} {
         set s [string trimright $s 0]
         set s [string trimright $s .]
@@ -148,7 +152,8 @@ proc CUS_fmt {v} {
 proc CUS_norm360 {a} {
     set a [expr {fmod($a, 360.0)}]
     if {$a < 0.0} { set a [expr {$a + 360.0}] }
-    set a [expr {round($a * 10000.0) / 10000.0}]
+    set k [expr {pow(10.0, $::CUS_decimals)}]
+    set a [expr {round($a * $k) / $k}]
     if {$a >= 360.0} { set a [expr {$a - 360.0}] }
     return $a
 }
@@ -396,7 +401,7 @@ proc CUS_restore_c {} {
     set c 0.0
     if {[info exists mom_out_angle_pos(1)]} { set c $mom_out_angle_pos(1) }
     set c [CUS_norm360 $c]
-    if {abs($c - $CUS_last_c) < 0.0001} { return }
+    if {abs($c - $CUS_last_c) < pow(10.0, -$::CUS_decimals)} { return }
     MOM_output_literal "G0 C=DC([CUS_fmt $c][CUS_c_off])"
     CUS_log "end of path: C back to [CUS_fmt $c] (library position)"
     set CUS_last_c $c
