@@ -1,6 +1,6 @@
 #=============================================================================
 # SHIMSET handling - custom layer   (TURN operations only)
-#  - SHIMSET ops: no spindle start, no coolant on, G94 feed
+#  - SHIMSET ops: no spindle start, no coolant on, no G96/G961, G94 feed
 #  - Other TURN ops: spindle + coolant ON at start, OFF + G94 at end
 #  - TURN ops: first move at F200 (called from the FIRST_MOVE_TURN prepend)
 #  - Every op (MILL + TURN) except SHIMSET: L_M54 once at end of operation
@@ -64,6 +64,11 @@ proc STOP_spindle_coolant {} {
 #-----------------------------------------------------------------------------
 set TURN_SAFETY_LINES {"ROT" "G90 G94 G40 G700"}
 
+# Words kept out of SHIMSET operations (disabled for the whole operation).
+# G_spin = the word that prints G96/G961 - check the name in the
+# initial_move_turn / linear_move_turn templates if G96 still appears.
+set SHIMSET_BLOCK_ADDRS {M_coolant G_spin}
+
 #-----------------------------------------------------------------------------
 # Event wrappers (each event wrapped ONCE)
 #-----------------------------------------------------------------------------
@@ -74,8 +79,11 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
     SHIMSET_start
 
     if {$shimset_mode} {
-      # Block M8 from ANY template during shimset (e.g. initial_move_turn)
-      MOM_disable_address M_coolant
+      # Block words from ANY template during shimset (e.g. initial_move_turn):
+      #   M_coolant - no M8
+      #   G_spin    - no G96/G961 (would switch to feed per rev -> stall)
+      global SHIMSET_BLOCK_ADDRS
+      foreach a $SHIMSET_BLOCK_ADDRS { catch {MOM_disable_address $a} }
     } elseif {$shimset_turn_op} {
       # Guarantee M8 on the first coolant call, even if M_coolant looks modal
       MOM_force once M_coolant
@@ -101,7 +109,8 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     SHIMSET_orig_end_of_path
 
     if {$shimset_mode} {
-      MOM_enable_address M_coolant
+      global SHIMSET_BLOCK_ADDRS
+      foreach a $SHIMSET_BLOCK_ADDRS { catch {MOM_enable_address $a} }
     }
 
     # Library already stops spindle/coolant on tool/MCS change.
@@ -175,7 +184,7 @@ if {![llength [info commands SHIMSET_orig_LIB_WRITE_coolant]]} {
 # TURN_FEED_DEBUG 1 writes a comment listing the variables it changed.
 #-----------------------------------------------------------------------------
 set TURN_FIRST_MOVE_FEED 200.0
-set TURN_FEED_DEBUG 1
+set TURN_FEED_DEBUG 0
 set turn_feed_saved {}
 
 proc TURN_first_move_feed {} {
@@ -291,11 +300,13 @@ proc GAGE_output_wear_check {{mode TURN}} {
   global GAGE_MILL_DP_Z GAGE_MILL_DP_R GAGE_MILL_TOL_R GAGE_MILL_TOL_Z
 
   if {$mode eq "MILL"} {
+    MOM_output_literal "M01"
     MOM_output_literal ";*** ASINMA OFSET TOLERANS KONTROLU ***"
     GAGE_output_axis R $GAGE_MILL_DP_R $GAGE_MILL_TOL_R
     GAGE_output_axis Z $GAGE_MILL_DP_Z $GAGE_MILL_TOL_Z
   } else {
     if {$gage_tol_x eq "" && $gage_tol_z eq ""} { return }   ;# no UDE in this op
+    MOM_output_literal "M01"
     MOM_output_literal ";*** ASINMA OFSET TOLERANS KONTROLU ***"
     GAGE_output_axis X $GAGE_WEAR_DP_X $gage_tol_x
     GAGE_output_axis Z $GAGE_WEAR_DP_Z $gage_tol_z
