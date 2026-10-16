@@ -10,6 +10,7 @@
 #      TURN: X and Z wear (tolerances from the UDE)
 #      MILL: radius and Z (length) wear, fixed tolerance 0.004
 #  - TURN ops: safety lines (ROT / G90 G94 G40 G700) at start of every operation
+#  - All ops: coolant UDE effects reset at the end of each operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
 #  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
@@ -70,12 +71,52 @@ set TURN_SAFETY_LINES {"ROT" "G90 G94 G40 G700"}
 set SHIMSET_BLOCK_ADDRS {M_coolant G_spin}
 
 #-----------------------------------------------------------------------------
+# Coolant UDE reset (all operations)
+#  A coolant UDE (e.g. Coolant OFF) changes mom_coolant_* and NX keeps those
+#  values for every following operation -> every later operation printed M9
+#  instead of M8. The mom_coolant_* values are snapshotted at the first
+#  start of path (= no UDE yet) and restored at the end of every operation,
+#  so a coolant UDE only affects its own operation.
+#-----------------------------------------------------------------------------
+set COOL_snapshot ""
+
+proc COOL_vars {} {
+  set out {}
+  foreach v [info globals mom_coolant*] {
+    if {[array exists ::$v]} { continue }
+    lappend out $v
+  }
+  return $out
+}
+
+proc COOL_take_snapshot {} {
+  global COOL_snapshot
+  if {$COOL_snapshot ne ""} { return }
+  set COOL_snapshot [dict create]
+  foreach v [COOL_vars] { dict set COOL_snapshot $v [set ::$v] }
+  dict set COOL_snapshot __taken 1
+}
+
+proc COOL_restore {} {
+  global COOL_snapshot
+  if {$COOL_snapshot eq ""} { return }
+  foreach v [COOL_vars] {
+    if {[dict exists $COOL_snapshot $v]} {
+      set ::$v [dict get $COOL_snapshot $v]
+    } else {
+      unset -nocomplain ::$v          ;# created by a UDE -> remove again
+    }
+  }
+}
+
+#-----------------------------------------------------------------------------
 # Event wrappers (each event wrapped ONCE)
 #-----------------------------------------------------------------------------
 if {![llength [info commands SHIMSET_orig_start_of_path]]} {
   rename MOM_start_of_path SHIMSET_orig_start_of_path
   proc MOM_start_of_path {} {
     global shimset_mode shimset_turn_op
+    COOL_take_snapshot          ;# first operation only: coolant defaults
     SHIMSET_start
 
     if {$shimset_mode} {
@@ -134,6 +175,9 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
         [string match -nocase "*GAGECUT*" $mom_operation_name]} {
       GAGE_output_wear_check [expr {$shimset_turn_op ? "TURN" : "MILL"}]
     }
+
+    # Coolant UDE effects end with their operation
+    COOL_restore
 
     set shimset_mode    0
     set shimset_turn_op 0
