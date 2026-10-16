@@ -11,6 +11,7 @@
 #      MILL: radius and Z (length) wear, fixed tolerance 0.004
 #  - TURN ops: safety lines (ROT / G90 G94 G40 G700) at start of every operation
 #  - All ops: coolant UDE effects reset at the end of each operation
+#  - All ops: mom_spindle_direction reset to CLW at the end of each operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
 #  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
@@ -79,6 +80,9 @@ set SHIMSET_BLOCK_ADDRS {M_coolant G_spin}
 #  so a coolant UDE only affects its own operation.
 #-----------------------------------------------------------------------------
 set COOL_snapshot ""
+
+# Spindle direction every operation starts from (reset at end of each one)
+set SPINDLE_DEFAULT_DIR CLW
 
 proc COOL_vars {} {
   set out {}
@@ -178,6 +182,13 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
 
     # Coolant UDE effects end with their operation
     COOL_restore
+
+    # Spindle direction back to the default for the next operation: an M4 /
+    # CCLW (e.g. from a spindle UDE) must not stick to later operations.
+    # An operation that sets its own direction still overrides this, because
+    # NX sends its spindle event after start of path.
+    global SPINDLE_DEFAULT_DIR
+    set ::mom_spindle_direction $SPINDLE_DEFAULT_DIR
 
     set shimset_mode    0
     set shimset_turn_op 0
