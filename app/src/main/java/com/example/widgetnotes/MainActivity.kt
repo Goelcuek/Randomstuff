@@ -48,6 +48,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +70,7 @@ import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
 import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.ui.NotesTheme
+import com.example.widgetnotes.ui.PhotoViewer
 import com.example.widgetnotes.widget.NotesWidgetReceiver
 import kotlinx.coroutines.launch
 
@@ -104,6 +108,7 @@ private fun NotesScreen(onOpen: (Long?, Boolean) -> Unit, onAddWidget: () -> Uni
     val state by stateFlow.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var viewing by remember { mutableStateOf<Note?>(null) }
 
     // Offer Undo after a delete (from here or from the widget)
     LaunchedEffect(state.recentlyDeleted) {
@@ -116,6 +121,7 @@ private fun NotesScreen(onOpen: (Long?, Boolean) -> Unit, onAddWidget: () -> Uni
         if (result == SnackbarResult.ActionPerformed) NoteRepository.undoDelete(context)
     }
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Black,
@@ -158,15 +164,31 @@ private fun NotesScreen(onOpen: (Long?, Boolean) -> Unit, onAddWidget: () -> Uni
                         onClick = { onOpen(note.id, false) },
                         onToggleDone = { scope.launch { NoteRepository.toggleDone(context, note.id) } },
                         onTogglePin = { scope.launch { NoteRepository.togglePinned(context, note.id) } },
+                        onPhotoClick = { viewing = note },
                     )
                 }
             }
         }
     }
+
+    viewing?.let { note ->
+        PhotoViewer(
+            files = note.images.map { ImageStore.file(context, it) },
+            startIndex = 0,
+            onDismiss = { viewing = null },
+        )
+    }
+    }
 }
 
 @Composable
-private fun NoteCard(note: Note, onClick: () -> Unit, onToggleDone: () -> Unit, onTogglePin: () -> Unit) {
+private fun NoteCard(
+    note: Note,
+    onClick: () -> Unit,
+    onToggleDone: () -> Unit,
+    onTogglePin: () -> Unit,
+    onPhotoClick: () -> Unit,
+) {
     val context = LocalContext.current
     val base = Color(0xFF111111)
     val container = if (note.pinned) lerp(base, MaterialTheme.colorScheme.primary, 0.14f) else base
@@ -183,7 +205,11 @@ private fun NoteCard(note: Note, onClick: () -> Unit, onToggleDone: () -> Unit, 
                 model = ImageStore.file(context, name),
                 contentDescription = "Photo",
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+                    .clickable { onPhotoClick() },
             )
         }
         Column(Modifier.padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 4.dp)) {

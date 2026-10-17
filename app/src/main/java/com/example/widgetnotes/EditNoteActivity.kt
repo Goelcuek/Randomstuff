@@ -34,7 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -74,14 +74,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import coil.compose.AsyncImage
@@ -90,6 +90,7 @@ import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
 import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.ui.NotesTheme
+import com.example.widgetnotes.ui.PhotoViewer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -111,13 +112,21 @@ class EditNoteActivity : ComponentActivity() {
     companion object {
         private const val EXTRA_ID = "note_id"
         private const val EXTRA_CAMERA = "camera"
+        private const val EXTRA_VIEW = "view_photos"
 
-        fun intent(context: Context, id: Long?, camera: Boolean = false): Intent =
+        /** [viewPhotos] opens straight into the full-screen photo viewer (used by widget thumbnails). */
+        fun intent(context: Context, id: Long?, camera: Boolean = false, viewPhotos: Boolean = false): Intent =
             Intent(context, EditNoteActivity::class.java).apply {
                 // Unique data URI so each note / mode gets its own PendingIntent
-                data = Uri.parse("widgetnotes://note/${id ?: "new"}${if (camera) "/camera" else ""}")
+                val mode = when {
+                    camera -> "/camera"
+                    viewPhotos -> "/view"
+                    else -> ""
+                }
+                data = Uri.parse("widgetnotes://note/${id ?: "new"}$mode")
                 putExtra(EXTRA_ID, id ?: -1L)
                 putExtra(EXTRA_CAMERA, camera)
+                putExtra(EXTRA_VIEW, viewPhotos)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
     }
@@ -131,6 +140,20 @@ class EditNoteActivity : ComponentActivity() {
         val id = intent.getLongExtra(EXTRA_ID, -1L).takeIf { it >= 0 }
         val existing = id?.let { NoteRepository.get(this, it) }
         val startCamera = intent.getBooleanExtra(EXTRA_CAMERA, false)
+
+        // Photo-only mode: just the zoomable viewer, closing it goes straight back home
+        if (intent.getBooleanExtra(EXTRA_VIEW, false) && existing != null && existing.images.isNotEmpty()) {
+            setContent {
+                NotesTheme {
+                    PhotoViewer(
+                        files = existing.images.map { ImageStore.file(this, it) },
+                        startIndex = 0,
+                        onDismiss = { finish() },
+                    )
+                }
+            }
+            return
+        }
 
         setContent {
             NotesTheme {
@@ -193,7 +216,9 @@ private fun EditorSheet(
     var remindAt by rememberSaveable { mutableStateOf(initial?.remindAt) }
     var pendingPhoto by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraAutoLaunched by rememberSaveable { mutableStateOf(false) }
-    var viewing by rememberSaveable { mutableStateOf<String?>(null) }
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     var showReminderMenu by remember { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var pickedDateUtc by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -277,6 +302,7 @@ private fun EditorSheet(
         unfocusedIndicatorColor = Color.Transparent,
     )
 
+    Box(Modifier.fillMaxSize()) {
     // Dimmed scrim — tap outside the card to save and close
     Box(
         modifier = Modifier
@@ -332,7 +358,7 @@ private fun EditorSheet(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(images, key = { it }) { name ->
+                        itemsIndexed(images, key = { _, name -> name }) { index, name ->
                             Box(Modifier.size(88.dp)) {
                                 AsyncImage(
                                     model = ImageStore.file(context, name),
@@ -341,7 +367,11 @@ private fun EditorSheet(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .clip(RoundedCornerShape(14.dp))
-                                        .clickable { viewing = name },
+                                        .clickable {
+                                            focusManager.clearFocus()
+                                            keyboard?.hide()
+                                            viewing = index
+                                        },
                                 )
                                 Box(
                                     modifier = Modifier
@@ -474,34 +504,13 @@ private fun EditorSheet(
         )
     }
 
-    // ---- Full-screen photo viewer ----
-    viewing?.let { name ->
-        Dialog(
-            onDismissRequest = { viewing = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { viewing = null },
-            ) {
-                AsyncImage(
-                    model = ImageStore.file(context, name),
-                    contentDescription = "Photo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                IconButton(
-                    onClick = { viewing = null },
-                    modifier = Modifier.align(Alignment.TopEnd).systemBarsPadding().padding(8.dp),
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
-                }
-            }
-        }
+    // ---- Full-screen zoomable photo viewer (drawn on top of the editor) ----
+    viewing?.let { index ->
+        PhotoViewer(
+            files = images.map { ImageStore.file(context, it) },
+            startIndex = index,
+            onDismiss = { viewing = null },
+        )
+    }
     }
 }

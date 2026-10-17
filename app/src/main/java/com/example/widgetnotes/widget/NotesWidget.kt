@@ -237,6 +237,7 @@ private fun NoteRow(note: Note) {
     val context = LocalContext.current
     val params = actionParametersOf(NoteIdKey to note.id)
     val open = actionStartActivity(EditNoteActivity.intent(context, note.id))
+    val viewPhotos = actionStartActivity(EditNoteActivity.intent(context, note.id, viewPhotos = true))
     val thumb = note.images.firstOrNull()?.let { ImageStore.loadThumb(context, it) }
     val strike = if (note.done) TextDecoration.LineThrough else TextDecoration.None
     val mainColor = if (note.done) c.muted else c.text
@@ -306,7 +307,7 @@ private fun NoteRow(note: Note) {
                 provider = ImageProvider(thumb),
                 contentDescription = "Photo",
                 contentScale = ContentScale.Crop,
-                modifier = GlanceModifier.size(46.dp).cornerRadius(10.dp).clickable(open),
+                modifier = GlanceModifier.size(46.dp).cornerRadius(10.dp).clickable(viewPhotos),
             )
             Spacer(GlanceModifier.width(2.dp))
         }
