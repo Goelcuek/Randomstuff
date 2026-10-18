@@ -2,6 +2,7 @@ package com.example.widgetnotes.widget
 
 import android.content.Context
 import android.os.Build
+import androidx.annotation.DrawableRes
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -10,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -54,10 +56,12 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.example.widgetnotes.EditNoteActivity
 import com.example.widgetnotes.R
+import com.example.widgetnotes.data.AppStyle
 import com.example.widgetnotes.data.ImageStore
 import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
 import com.example.widgetnotes.data.NotesState
+import com.example.widgetnotes.data.Settings
 import com.example.widgetnotes.reminders.Reminders
 
 const val FILTER_ALL = "all"
@@ -67,39 +71,76 @@ const val FILTER_DONE = "done"
 /** Per-widget UI state (which tab is selected). */
 val FilterKey = stringPreferencesKey("filter")
 
-/** AMOLED palette: pure black, dark greys, accent taken from the wallpaper (Android 12+). */
+/** A surface is either a glass drawable (translucent + rim) or a flat colour. */
+data class Fill(@DrawableRes val res: Int? = null, val color: ColorProvider? = null, val radius: Dp)
+
+private fun GlanceModifier.fill(f: Fill): GlanceModifier {
+    val withBg = if (f.res != null) background(ImageProvider(f.res)) else background(f.color!!)
+    return withBg.cornerRadius(f.radius)
+}
+
 data class WidgetPalette(
-    val background: ColorProvider,
-    val card: ColorProvider,
-    val pinnedCard: ColorProvider,
-    val chip: ColorProvider,
+    val panel: Fill,
+    val card: Fill,
+    val pinnedCard: Fill,
+    val chip: Fill,
+    val chipSelected: Fill,
+    val pill: Fill,
+    val banner: Fill,
+    val action: Fill,
+    val onChipSelected: ColorProvider,
+    val onAction: ColorProvider,
     val text: ColorProvider,
     val muted: ColorProvider,
     val accent: ColorProvider,
-    val onAccent: ColorProvider,
-    val banner: ColorProvider,
     val warn: ColorProvider,
 )
 
 private val LocalPalette = staticCompositionLocalOf<WidgetPalette> { error("No palette") }
 
-private fun buildPalette(context: Context): WidgetPalette {
+private fun buildPalette(context: Context, style: AppStyle): WidgetPalette {
     val scheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) dynamicDarkColorScheme(context) else null
     val accent = scheme?.primary ?: Color(0xFF8AB4F8)
     val onAccent = scheme?.onPrimary ?: Color(0xFF00213F)
-    val card = Color(0xFF111111)
-    return WidgetPalette(
-        background = ColorProvider(Color.Black),
-        card = ColorProvider(card),
-        pinnedCard = ColorProvider(lerp(card, accent, 0.14f)),
-        chip = ColorProvider(Color(0xFF1A1A1A)),
-        text = ColorProvider(Color(0xFFF2F2F2)),
-        muted = ColorProvider(Color(0xFF8E8E8E)),
-        accent = ColorProvider(accent),
-        onAccent = ColorProvider(onAccent),
-        banner = ColorProvider(Color(0xFF222222)),
-        warn = ColorProvider(Color(0xFFFF8A80)),
-    )
+    fun c(color: Color) = ColorProvider(color)
+
+    return when (style) {
+        AppStyle.GLASS, AppStyle.GLASS_DARK -> WidgetPalette(
+            panel = Fill(res = if (style == AppStyle.GLASS) R.drawable.glass_panel else R.drawable.glass_dark_panel, radius = 28.dp),
+            card = Fill(res = R.drawable.glass_card, radius = 18.dp),
+            pinnedCard = Fill(res = R.drawable.glass_card_pinned, radius = 18.dp),
+            chip = Fill(res = R.drawable.glass_chip, radius = 16.dp),
+            chipSelected = Fill(color = c(Color(0xF2FFFFFF)), radius = 16.dp),
+            pill = Fill(res = R.drawable.glass_pill, radius = 26.dp),
+            banner = Fill(res = R.drawable.glass_banner, radius = 14.dp),
+            action = Fill(color = c(Color(0xF2FFFFFF)), radius = 26.dp),
+            onChipSelected = c(Color(0xFF151515)),
+            onAction = c(Color(0xFF151515)),
+            text = c(Color.White),
+            muted = c(Color(0xD9FFFFFF)),
+            accent = c(lerp(accent, Color.White, 0.35f)),
+            warn = c(Color(0xFFFFB4AB)),
+        )
+        AppStyle.AMOLED -> {
+            val card = Color(0xFF111111)
+            WidgetPalette(
+                panel = Fill(color = c(Color.Black), radius = 28.dp),
+                card = Fill(color = c(card), radius = 18.dp),
+                pinnedCard = Fill(color = c(lerp(card, accent, 0.14f)), radius = 18.dp),
+                chip = Fill(color = c(Color(0xFF1A1A1A)), radius = 16.dp),
+                chipSelected = Fill(color = c(accent), radius = 16.dp),
+                pill = Fill(color = c(Color(0xFF1A1A1A)), radius = 26.dp),
+                banner = Fill(color = c(Color(0xFF222222)), radius = 14.dp),
+                action = Fill(color = c(accent), radius = 26.dp),
+                onChipSelected = c(onAccent),
+                onAction = c(onAccent),
+                text = c(Color(0xFFF2F2F2)),
+                muted = c(Color(0xFF8E8E8E)),
+                accent = c(accent),
+                warn = c(Color(0xFFFF8A80)),
+            )
+        }
+    }
 }
 
 class NotesWidget : GlanceAppWidget() {
@@ -109,11 +150,12 @@ class NotesWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val notesFlow = NoteRepository.state(context)
-        val palette = buildPalette(context)
+        val styleFlow = Settings.style(context)
         provideContent {
             val state by notesFlow.collectAsState()
+            val style by styleFlow.collectAsState()
             val filter = currentState(FilterKey) ?: FILTER_ALL
-            CompositionLocalProvider(LocalPalette provides palette) {
+            CompositionLocalProvider(LocalPalette provides buildPalette(context, style)) {
                 WidgetContent(state, filter)
             }
         }
@@ -134,8 +176,7 @@ private fun WidgetContent(state: NotesState, filter: String) {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(c.background)
-            .cornerRadius(28.dp)
+            .fill(c.panel)
             .padding(horizontal = 12.dp, vertical = 14.dp)
     ) {
         // Header: title + tabs on one line when there's room
@@ -214,8 +255,7 @@ private fun FilterChip(label: String, value: String, selected: String) {
     Box(
         modifier = GlanceModifier
             .height(32.dp)
-            .background(if (isSelected) c.accent else c.chip)
-            .cornerRadius(16.dp)
+            .fill(if (isSelected) c.chipSelected else c.chip)
             .padding(horizontal = 14.dp)
             .clickable(actionRunCallback<SetFilterAction>(actionParametersOf(FilterParam to value))),
         contentAlignment = Alignment.Center,
@@ -223,7 +263,7 @@ private fun FilterChip(label: String, value: String, selected: String) {
         Text(
             label,
             style = TextStyle(
-                color = if (isSelected) c.onAccent else c.muted,
+                color = if (isSelected) c.onChipSelected else c.muted,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
             ),
@@ -245,15 +285,14 @@ private fun NoteRow(note: Note) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .background(if (note.pinned) c.pinnedCard else c.card)
-            .cornerRadius(16.dp)
+            .fill(if (note.pinned) c.pinnedCard else c.card)
             .padding(end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CheckBox(
             checked = note.done,
             onCheckedChange = actionRunCallback<ToggleDoneAction>(params),
-            colors = CheckboxDefaults.colors(checkedColor = c.accent, uncheckedColor = c.muted),
+            colors = CheckboxDefaults.colors(checkedColor = c.text, uncheckedColor = c.muted),
         )
 
         // Text block — tap to open the editor
@@ -335,8 +374,7 @@ private fun UndoBanner(deleted: Note) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .background(c.banner)
-            .cornerRadius(14.dp)
+            .fill(c.banner)
             .padding(start = 14.dp, end = 2.dp)
             .clickable(actionRunCallback<DismissUndoAction>()),
         verticalAlignment = Alignment.CenterVertically,
@@ -374,8 +412,7 @@ private fun BottomBar() {
             modifier = GlanceModifier
                 .defaultWeight()
                 .height(52.dp)
-                .background(c.chip)
-                .cornerRadius(26.dp)
+                .fill(c.pill)
                 .padding(horizontal = 18.dp)
                 .clickable(actionStartActivity(EditNoteActivity.intent(context, null))),
             verticalAlignment = Alignment.CenterVertically,
@@ -394,8 +431,7 @@ private fun BottomBar() {
         Box(
             modifier = GlanceModifier
                 .size(52.dp)
-                .background(c.accent)
-                .cornerRadius(26.dp)
+                .fill(c.action)
                 .clickable(actionStartActivity(EditNoteActivity.intent(context, null, camera = true))),
             contentAlignment = Alignment.Center,
         ) {
@@ -403,7 +439,7 @@ private fun BottomBar() {
                 provider = ImageProvider(R.drawable.ic_camera),
                 contentDescription = "Photo note",
                 modifier = GlanceModifier.size(22.dp),
-                colorFilter = ColorFilter.tint(c.onAccent),
+                colorFilter = ColorFilter.tint(c.onAction),
             )
         }
     }

@@ -90,6 +90,9 @@ import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
 import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.ui.NotesTheme
+import com.example.widgetnotes.ui.LocalGlass
+import com.example.widgetnotes.ui.blurController
+import com.example.widgetnotes.ui.glassSurface
 import com.example.widgetnotes.ui.PhotoViewer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -155,8 +158,10 @@ class EditNoteActivity : ComponentActivity() {
             return
         }
 
+        // Frosted blur of the home screen behind the editor (Android 12+)
+        val blur = blurController()
         setContent {
-            NotesTheme {
+            NotesTheme(blur) {
                 EditorSheet(
                     initial = existing,
                     startWithCamera = startCamera,
@@ -307,7 +312,7 @@ private fun EditorSheet(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
+            .background(LocalGlass.current.let { if (it.isGlass) it.screenTint else Color.Black.copy(alpha = 0.6f) })
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -317,11 +322,16 @@ private fun EditorSheet(
             .padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
+        val glass = LocalGlass.current
+        val sheetShape = RoundedCornerShape(28.dp)
         Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = Color(0xFF0E0E0E),
-            border = BorderStroke(1.dp, Color(0xFF262626)),
-            modifier = Modifier.fillMaxWidth().widthIn(max = 560.dp),
+            shape = sheetShape,
+            color = if (glass.isGlass) Color.Transparent else Color(0xFF0E0E0E),
+            border = if (glass.isGlass) null else BorderStroke(1.dp, Color(0xFF262626)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 560.dp)
+                .then(if (glass.isGlass) Modifier.glassSurface(sheetShape, strong = true) else Modifier),
         ) {
             Column(Modifier.padding(horizontal = 6.dp, vertical = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

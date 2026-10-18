@@ -9,7 +9,7 @@ An Android note-taking app whose home-screen widget can fill the whole screen an
 4. Drag the widget's resize handles to the screen edges to make it full screen.
 
 ## What you can do on the widget (without opening the app)
-- Scroll through all notes (AMOLED black design)
+- Scroll through all notes — Liquid glass, Dark glass or AMOLED black style (app menu ⋮ → Style)
 - Tick a note done / not done (done notes get struck through and sink to the bottom)
 - Pin / unpin (pinned notes float to the top, highlighted)
 - Delete, with an **Undo** banner (tap X or the banner to dismiss)

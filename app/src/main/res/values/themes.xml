@@ -5,6 +5,13 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <!-- Main screen: translucent so the blurred home screen shows through in glass styles -->
+    <style name="Theme.WidgetNotes.Glass" parent="Theme.WidgetNotes">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
     <!-- Transparent window so the editor floats over the home screen / widget -->
     <style name="Theme.WidgetNotes.Overlay" parent="Theme.WidgetNotes">
         <item name="android:windowIsTranslucent">true</item>

@@ -12,13 +12,27 @@ android {
         applicationId = "com.example.widgetnotes"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
+    }
+
+    // One fixed key for every build, so new APKs install over old ones (keeps your notes).
+    signingConfigs {
+        create("shared") {
+            storeFile = file("widgetnotes.keystore")
+            storePassword = "widgetnotes"
+            keyAlias = "widgetnotes"
+            keyPassword = "widgetnotes"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 

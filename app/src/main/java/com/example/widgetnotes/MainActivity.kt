@@ -70,6 +70,17 @@ import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
 import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.ui.NotesTheme
+import com.example.widgetnotes.ui.LocalGlass
+import com.example.widgetnotes.ui.blurController
+import com.example.widgetnotes.ui.glassSurface
+import com.example.widgetnotes.data.AppStyle
+import com.example.widgetnotes.data.Settings
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import com.example.widgetnotes.ui.PhotoViewer
 import com.example.widgetnotes.widget.NotesWidgetReceiver
 import kotlinx.coroutines.launch
@@ -78,8 +89,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val blur = blurController()
         setContent {
-            NotesTheme {
+            NotesTheme(blur) {
                 NotesScreen(
                     onOpen = { id, camera -> startActivity(EditNoteActivity.intent(this, id, camera)) },
                     onAddWidget = { requestPinWidget() },
@@ -109,6 +121,9 @@ private fun NotesScreen(onOpen: (Long?, Boolean) -> Unit, onAddWidget: () -> Uni
     val snackbar = remember { SnackbarHostState() }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var viewing by remember { mutableStateOf<Note?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val glass = LocalGlass.current
+    val style by remember { Settings.style(context) }.collectAsStateWithLifecycle()
 
     // Offer Undo after a delete (from here or from the widget)
     LaunchedEffect(state.recentlyDeleted) {
@@ -121,26 +136,70 @@ private fun NotesScreen(onOpen: (Long?, Boolean) -> Unit, onAddWidget: () -> Uni
         if (result == SnackbarResult.ActionPerformed) NoteRepository.undoDelete(context)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // The window is translucent: in glass styles the (blurred) home screen shows through this tint
+    Box(Modifier.fillMaxSize().background(glass.screenTint)) {
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        containerColor = Color.Black,
+        containerColor = Color.Transparent,
         topBar = {
             LargeTopAppBar(
                 title = { Text("Notes") },
-                actions = { TextButton(onClick = onAddWidget) { Text("Add widget") } },
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Menu")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Add widget to home screen") },
+                                onClick = { menuOpen = false; onAddWidget() },
+                            )
+                            HorizontalDivider()
+                            Text(
+                                "Style",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 4.dp),
+                            )
+                            AppStyle.entries.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option.label) },
+                                    trailingIcon = {
+                                        if (option == style) Icon(Icons.Filled.Check, contentDescription = "Selected")
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        scope.launch { Settings.setStyle(context, option) }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = if (glass.isGlass) Color.Black.copy(alpha = 0.35f) else Color.Black,
+                ),
                 scrollBehavior = scrollBehavior,
             )
         },
         floatingActionButton = {
+            val fabColor = if (glass.isGlass) Color.White.copy(alpha = 0.92f) else MaterialTheme.colorScheme.primaryContainer
+            val fabContent = if (glass.isGlass) Color(0xFF151515) else MaterialTheme.colorScheme.onPrimaryContainer
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SmallFloatingActionButton(onClick = { onOpen(null, true) }) {
+                SmallFloatingActionButton(
+                    onClick = { onOpen(null, true) },
+                    containerColor = fabColor,
+                    contentColor = fabContent,
+                ) {
                     Icon(painterResource(R.drawable.ic_camera), contentDescription = "Photo note")
                 }
                 ExtendedFloatingActionButton(
                     onClick = { onOpen(null, false) },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     text = { Text("New note") },
+                    containerColor = fabColor,
+                    contentColor = fabContent,
                 )
             }
         },
@@ -190,15 +249,14 @@ private fun NoteCard(
     onPhotoClick: () -> Unit,
 ) {
     val context = LocalContext.current
-    val base = Color(0xFF111111)
-    val container = if (note.pinned) lerp(base, MaterialTheme.colorScheme.primary, 0.14f) else base
     val decoration = if (note.done) TextDecoration.LineThrough else TextDecoration.None
+    val shape = RoundedCornerShape(18.dp)
 
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = container),
-        border = BorderStroke(1.dp, Color(0xFF1F1F1F)),
-        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent, contentColor = Color.White),
+        shape = shape,
+        modifier = Modifier.glassSurface(shape, strong = note.pinned, accentTint = note.pinned),
     ) {
         note.images.firstOrNull()?.let { name ->
             AsyncImage(
@@ -227,7 +285,7 @@ private fun NoteCard(
                         painterResource(R.drawable.ic_pin),
                         contentDescription = if (note.pinned) "Unpin" else "Pin",
                         tint = if (note.pinned) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        else Color.White.copy(alpha = 0.55f),
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -237,7 +295,7 @@ private fun NoteCard(
                     text = note.body,
                     style = MaterialTheme.typography.bodyMedium,
                     textDecoration = decoration,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.8f),
                     maxLines = 8,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(end = 10.dp),
