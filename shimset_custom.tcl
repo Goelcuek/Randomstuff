@@ -13,6 +13,7 @@
 #  - All ops: coolant UDE effects reset at the end of each operation
 #  - All ops: mom_spindle_direction reset to CLW at the end of each operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
+#  - Tapping ops: CYCLE832 deselected (CYCLE832(0,0,1)) before CYCLE84
 #  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
 
@@ -37,6 +38,7 @@ proc get_next_oper_name {} {
 proc SHIMSET_start {} {
   global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
   set shimset_g94_done 0
+  set ::tap_hsm_off_done 0
   TURN_first_move_restore
   GAGE_reset
   set shimset_turn_op [SHIMSET_is_turn]
@@ -411,5 +413,37 @@ if {[llength [info commands MOM_insert]] && \
       }
     }
     INSERT_orig_MOM_insert
+  }
+}
+
+#-----------------------------------------------------------------------------
+# TAPPING: deselect CYCLE832 (high speed settings) before CYCLE84
+#  CYCLE832 compressor/smoothing active during rigid tapping makes the
+#  spindle/Z synchronisation misbehave. Output the deselect once per
+#  tapping operation, right before the first tap cycle block (MCALL CYCLE84).
+#  The next operation outputs its own CYCLE832 at its start as before.
+#  TAP_HSM_OFF: deselect call (_TOLM = 0 -> off)
+#-----------------------------------------------------------------------------
+set TAP_HSM_OFF "CYCLE832(0,0,1)"
+set tap_hsm_off_done 0
+
+# NX cycle-parameter events for tapping (fire before the cycle block)
+set TAP_EVENTS {MOM_tap MOM_tap_float MOM_tap_deep MOM_tap_break_chip}
+
+proc TAP_hsm_off {} {
+  global TAP_HSM_OFF tap_hsm_off_done
+  if {[info exists tap_hsm_off_done] && $tap_hsm_off_done} { return }
+  MOM_output_literal $TAP_HSM_OFF
+  set tap_hsm_off_done 1
+}
+
+foreach ev $TAP_EVENTS {
+  if {[llength [info commands $ev]] && \
+      ![llength [info commands TAP_orig_$ev]]} {
+    rename $ev TAP_orig_$ev
+    proc $ev {} [format {
+      TAP_hsm_off
+      uplevel 1 TAP_orig_%s
+    } $ev]
   }
 }
