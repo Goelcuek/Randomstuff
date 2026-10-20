@@ -13,7 +13,8 @@
 #  - All ops: coolant UDE effects reset at the end of each operation
 #  - All ops: mom_spindle_direction reset to CLW at the end of each operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
-#  - Tapping ops: CYCLE832 deselected (CYCLE832(0,0,1)) before CYCLE84
+#  - Tapping ops: CYCLE832 deselected (CYCLE832(0,0,1)) before CYCLE84 and
+#    the previous CYCLE832 restored right after the cycle (GRUP-safe)
 #  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
 
@@ -39,6 +40,7 @@ proc SHIMSET_start {} {
   global mom_operation_name shimset_mode shimset_turn_op shimset_g94_done
   set shimset_g94_done 0
   set ::tap_hsm_off_done 0
+  set ::tap_hsm_restored 0
   TURN_first_move_restore
   GAGE_reset
   set shimset_turn_op [SHIMSET_is_turn]
@@ -152,6 +154,11 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
   rename MOM_end_of_path SHIMSET_orig_end_of_path
   proc MOM_end_of_path {} {
     global mom_next_oper_has_tool_change shimset_mode shimset_turn_op
+
+    # Tapping op: CYCLE832 back on BEFORE any end-of-path output, so it
+    # stays inside a GRUP ... GRUPSON loop (fallback if MOM_cycle_off
+    # didn't already do it)
+    TAP_hsm_restore
 
     SHIMSET_orig_end_of_path
 
@@ -421,20 +428,56 @@ if {[llength [info commands MOM_insert]] && \
 #  CYCLE832 compressor/smoothing active during rigid tapping makes the
 #  spindle/Z synchronisation misbehave. Output the deselect once per
 #  tapping operation, right before the first tap cycle block (MCALL CYCLE84).
-#  The next operation outputs its own CYCLE832 at its start as before.
-#  TAP_HSM_OFF: deselect call (_TOLM = 0 -> off)
+#
+#  Restore: right after the cycle is cancelled (MOM_cycle_off, fallback at
+#  the start of end of path) the last CYCLE832 the post wrote is output
+#  again. Needed for GRUP ... GRUPSON: all items of a group run in ONE loop
+#  (TP1 ... GOTOB TP1) and the group's CYCLE832 is written only once,
+#  before the loop - without the restore, every item after the tap (and
+#  every item in the next loop pass) would run with CYCLE832 off.
+#  Outside a group the restore is a harmless repeat.
+#
+#  TAP_HSM_OFF      deselect call (_TOLM = 0 -> off)
+#  TAP_HSM_DEFAULT  used for the restore if no CYCLE832 was seen yet
+#                   ("" = write a warning comment instead)
 #-----------------------------------------------------------------------------
 set TAP_HSM_OFF "CYCLE832(0,0,1)"
+set TAP_HSM_DEFAULT ""
 set tap_hsm_off_done 0
+set tap_hsm_restored 0
+set tap_hsm_last ""
 
 # NX cycle-parameter events for tapping (fire before the cycle block)
 set TAP_EVENTS {MOM_tap MOM_tap_float MOM_tap_deep MOM_tap_break_chip}
+
+# Remember the last CYCLE832 select written (literal or template output)
+proc TAP_hsm_capture {txt} {
+  global TAP_HSM_OFF tap_hsm_last
+  if {![regexp {CYCLE832\s*\([^)]*\)} $txt call]} { return }
+  if {[string map {" " ""} $call] eq $TAP_HSM_OFF} { return }
+  if {[regexp {CYCLE832\s*\(\s*[^,]*,\s*0\s*,} $call]} { return }  ;# any deselect
+  set tap_hsm_last $call
+}
 
 proc TAP_hsm_off {} {
   global TAP_HSM_OFF tap_hsm_off_done
   if {[info exists tap_hsm_off_done] && $tap_hsm_off_done} { return }
   MOM_output_literal $TAP_HSM_OFF
   set tap_hsm_off_done 1
+}
+
+proc TAP_hsm_restore {} {
+  global tap_hsm_off_done tap_hsm_restored tap_hsm_last TAP_HSM_DEFAULT
+  if {![info exists tap_hsm_off_done] || !$tap_hsm_off_done} { return }
+  if {[info exists tap_hsm_restored] && $tap_hsm_restored} { return }
+  set tap_hsm_restored 1
+  if {$tap_hsm_last ne ""} {
+    MOM_output_literal $tap_hsm_last
+  } elseif {$TAP_HSM_DEFAULT ne ""} {
+    MOM_output_literal $TAP_HSM_DEFAULT
+  } else {
+    MOM_output_literal "; !! CYCLE832 RESTORE: NO PREVIOUS CYCLE832 FOUND"
+  }
 }
 
 foreach ev $TAP_EVENTS {
@@ -445,5 +488,32 @@ foreach ev $TAP_EVENTS {
       TAP_hsm_off
       uplevel 1 TAP_orig_%s
     } $ev]
+  }
+}
+
+# Restore right after the cycle cancel (MCALL) - still inside the op
+if {[llength [info commands MOM_cycle_off]] && \
+    ![llength [info commands TAP_orig_MOM_cycle_off]]} {
+  rename MOM_cycle_off TAP_orig_MOM_cycle_off
+  proc MOM_cycle_off {} {
+    uplevel 1 TAP_orig_MOM_cycle_off
+    TAP_hsm_restore
+  }
+}
+
+# Capture every CYCLE832 the post writes
+if {![llength [info commands TAP_orig_MOM_output_literal]]} {
+  rename MOM_output_literal TAP_orig_MOM_output_literal
+  proc MOM_output_literal {txt} {
+    TAP_hsm_capture $txt
+    return [TAP_orig_MOM_output_literal $txt]
+  }
+}
+if {![llength [info commands TAP_orig_MOM_do_template]]} {
+  rename MOM_do_template TAP_orig_MOM_do_template
+  proc MOM_do_template {args} {
+    set r [uplevel 1 [linsert $args 0 TAP_orig_MOM_do_template]]
+    if {[lindex $args 1] ne "CREATE"} { TAP_hsm_capture $r }
+    return $r
   }
 }
