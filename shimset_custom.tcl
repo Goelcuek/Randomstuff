@@ -14,7 +14,9 @@
 #  - All ops: mom_spindle_direction reset to CLW at the end of each operation
 #  - All ops: Fanuc-style Insert text (M00(MSG,...), (comment)) -> 840D syntax
 #  - Tapping ops: CYCLE832 deselected (CYCLE832(0,0,1)) before CYCLE84 and
-#    the previous CYCLE832 restored right after the cycle (GRUP-safe)
+#    the previous CYCLE832 restored right after the cycle
+#  - GRUP ... GRUPSON: items run continuously (one tool, no tool change, no
+#    laser, no M9 M5 / home / L_M54 between items), checks with MOM_abort
 #  - Other than the safety lines, non-TURN ops are left to the library
 #=============================================================================
 
@@ -126,6 +128,8 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
     global shimset_mode shimset_turn_op
     COOL_take_snapshot          ;# first operation only: coolant defaults
     SHIMSET_start
+    GRUP_install                ;# wrap Hermle_Custom_Toolchange (once)
+    GRUP_start                  ;# group state for this item
 
     if {$shimset_mode} {
       # Block words from ANY template during shimset (e.g. initial_move_turn):
@@ -147,6 +151,11 @@ if {![llength [info commands SHIMSET_orig_start_of_path]]} {
       global TURN_SAFETY_LINES
       foreach l $TURN_SAFETY_LINES { MOM_output_literal $l }
     }
+
+    # GRUP: our state wins over any other grup_flag setter at start of path
+    GRUP_assert_flag
+    global grup_flag mom_operation_name
+    if {$grup_flag} { MOM_output_literal ";*** $mom_operation_name ***" }
   }
 }
 
@@ -154,10 +163,13 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
   rename MOM_end_of_path SHIMSET_orig_end_of_path
   proc MOM_end_of_path {} {
     global mom_next_oper_has_tool_change shimset_mode shimset_turn_op
+    global grup_devam
 
-    # Tapping op: CYCLE832 back on BEFORE any end-of-path output, so it
-    # stays inside a GRUP ... GRUPSON loop (fallback if MOM_cycle_off
-    # didn't already do it)
+    # GRUP checks (akilli / tool change / not closed) - abort before output
+    GRUP_end_check
+
+    # Tapping op: CYCLE832 back on BEFORE any end-of-path output
+    # (fallback if MOM_cycle_off didn't already do it)
     TAP_hsm_restore
 
     SHIMSET_orig_end_of_path
@@ -171,13 +183,15 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
     # Otherwise stop them ourselves after every cutting TURN op.
     set tc [expr {[info exists mom_next_oper_has_tool_change] \
                   ? $mom_next_oper_has_tool_change : "YES"}]
-    if {$shimset_turn_op && !$shimset_mode && $tc eq "NO"} {
+    # Not inside a group: spindle and coolant keep running to the next item
+    if {$shimset_turn_op && !$shimset_mode && $tc eq "NO" && !$grup_devam} {
       STOP_spindle_coolant
     }
 
     # Home / reset at the end of every operation (after M9/M5)
     # - not after SHIMSET ops (tool stays at the part for the following cut)
-    if {!$shimset_mode} {
+    # - not between the items of a group (only after the GRUPSON item)
+    if {!$shimset_mode && !$grup_devam} {
       MOM_output_literal "L_M54"
     }
 
@@ -201,6 +215,7 @@ if {![llength [info commands SHIMSET_orig_end_of_path]]} {
 
     set shimset_mode    0
     set shimset_turn_op 0
+    GRUP_end_done
   }
 }
 
@@ -431,11 +446,9 @@ if {[llength [info commands MOM_insert]] && \
 #
 #  Restore: right after the cycle is cancelled (MOM_cycle_off, fallback at
 #  the start of end of path) the last CYCLE832 the post wrote is output
-#  again. Needed for GRUP ... GRUPSON: all items of a group run in ONE loop
-#  (TP1 ... GOTOB TP1) and the group's CYCLE832 is written only once,
-#  before the loop - without the restore, every item after the tap (and
-#  every item in the next loop pass) would run with CYCLE832 off.
-#  Outside a group the restore is a harmless repeat.
+#  again, so the following items (e.g. the rest of a GRUP, where CYCLE832
+#  may not be written again) don't run with CYCLE832 off.
+#  Otherwise the restore is a harmless repeat.
 #
 #  TAP_HSM_OFF      deselect call (_TOLM = 0 -> off)
 #  TAP_HSM_DEFAULT  used for the restore if no CYCLE832 was seen yet
@@ -515,5 +528,121 @@ if {![llength [info commands TAP_orig_MOM_do_template]]} {
     set r [uplevel 1 [linsert $args 0 TAP_orig_MOM_do_template]]
     if {[lindex $args 1] ne "CREATE"} { TAP_hsm_capture $r }
     return $r
+  }
+}
+
+#-----------------------------------------------------------------------------
+# GRUP / GRUPSON
+#  An operation name containing GRUP opens a group, the next one containing
+#  GRUPSON closes it (both items belong to the group). Inside a group the
+#  program runs like a normal post:
+#   - one tool for the whole group: no tool change, no laser check after the
+#     GRUP item (Hermle_Custom_Toolchange is skipped, your laser proc
+#     returns on grup_flag)
+#   - spindle and coolant stay on: no M9 M5 / return home / L_M54 between
+#     items - those come once, at the end of the GRUPSON item
+#   - every following item gets its operation name as a comment
+#
+#  State variables (use them in your own code):
+#   grup_flag    1 = item continues a group (every item after the GRUP item)
+#                    -> skip tool change, laser, item-start stuff
+#   grup_devam   1 = the group continues after this item (every item before
+#                    the GRUPSON item) -> skip M9 M5 / home / L_M54 at its end
+#   grup_icinde  1 = item is part of a group (any position)
+#
+#  Errors (post stops with MOM_abort):
+#   - GRUPSON without an open GRUP, or a new GRUP before GRUPSON
+#   - akilli in a group item
+#   - tool change inside a group
+#   - group not closed (last operation has no GRUPSON)
+#-----------------------------------------------------------------------------
+set GRUP_KEY      "GRUP"
+set GRUPSON_KEY   "GRUPSON"
+set grup_open     0
+set grup_flag     0
+set grup_devam    0
+set grup_icinde   0
+set grup_start_op ""
+
+proc GRUP_abort {msg} {
+  set s "\n\n******************************   U Y A R I   ******************************\n\n"
+  MOM_abort "$s   $msg \n$s"
+}
+
+# Start of path: where is this item in a group?
+proc GRUP_start {} {
+  global mom_operation_name GRUP_KEY GRUPSON_KEY
+  global grup_open grup_flag grup_devam grup_icinde grup_start_op
+
+  set n [string toupper $mom_operation_name]
+  set is_end   [expr {[string first $GRUPSON_KEY $n] >= 0}]
+  set is_begin [expr {!$is_end && [string first $GRUP_KEY $n] >= 0}]
+
+  if {$is_end && !$grup_open} {
+    GRUP_abort "GRUPSON var ama acik GRUP yok. Ilgili Item: ( $mom_operation_name )"
+  }
+  if {$is_begin && $grup_open} {
+    GRUP_abort "GRUP ( $grup_start_op ) GRUPSON ile kapanmadan yeni GRUP basladi. Ilgili Item: ( $mom_operation_name )"
+  }
+  if {$is_begin} {
+    set grup_open 1
+    set grup_start_op $mom_operation_name
+  }
+
+  set grup_icinde $grup_open
+  set grup_flag   [expr {$grup_open && !$is_begin}]
+  set grup_devam  [expr {$grup_open && !$is_end}]
+  set ::grup_flag_mine $grup_flag
+}
+
+# After the library start of path: our grup_flag wins
+proc GRUP_assert_flag {} {
+  if {[info exists ::grup_flag_mine]} { set ::grup_flag $::grup_flag_mine }
+}
+
+# End of path, before any output
+proc GRUP_end_check {} {
+  global grup_icinde grup_devam grup_start_op mom_operation_name
+  global mom_next_oper_has_tool_change
+  # (akilli is checked by the trace on mom_akilli, the moment the UDE sets it)
+  if {![info exists grup_icinde] || !$grup_icinde || !$grup_devam} { return }
+
+  if {[info exists ::mom_operation_name_list] && [get_next_oper_name] eq ""} {
+    GRUP_abort "GRUP ( $grup_start_op ) GRUPSON ile kapanmamis. Son Item: ( $mom_operation_name )"
+  }
+  if {[info exists mom_next_oper_has_tool_change] && \
+      $mom_next_oper_has_tool_change eq "YES"} {
+    GRUP_abort "GRUP icinde takim degisemez. GRUP: ( $grup_start_op )  Ilgili Item: ( [get_next_oper_name] )"
+  }
+}
+
+# End of path, after everything: GRUPSON item closes the group
+proc GRUP_end_done {} {
+  global grup_icinde grup_devam grup_open
+  if {$grup_icinde && !$grup_devam} { set grup_open 0 }
+}
+
+# Akilli UDE inside a group -> stop right away (UDE fires after start of path)
+proc GRUP_akilli_trace {args} {
+  global grup_icinde mom_akilli mom_operation_name
+  if {![info exists grup_icinde] || !$grup_icinde} { return }
+  if {[info exists mom_akilli] && [string is true -strict $mom_akilli]} {
+    GRUP_abort "GRUP ve AKILLI ayni anda kullanilamaz. Ilgili Item: ( $mom_operation_name )"
+  }
+}
+if {[lsearch -exact [trace info variable ::mom_akilli] {write GRUP_akilli_trace}] < 0} {
+  trace add variable ::mom_akilli write GRUP_akilli_trace
+}
+
+# No tool change for the items after the GRUP item. Wrapped at the first
+# start of path, so it works whatever order the custom files are loaded in.
+proc GRUP_install {} {
+  if {![llength [info commands Hermle_Custom_Toolchange]]} { return }
+  if {[llength [info commands GRUP_orig_Hermle_Custom_Toolchange]]} { return }
+  rename Hermle_Custom_Toolchange GRUP_orig_Hermle_Custom_Toolchange
+  proc Hermle_Custom_Toolchange {args} {
+    global grup_flag
+    if {[info exists grup_flag] && $grup_flag} { return }
+    uplevel 1 [list GRUP_orig_Hermle_Custom_Toolchange {*}$args]
   }
 }
