@@ -1,0 +1,49 @@
+name: Build IR Remote APK
+
+on:
+  push:
+    paths:
+      - "ir-remote/**"
+      - ".github/workflows/ir-remote.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ir-remote
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build release APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk TV-Remote.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TV-Remote-apk
+          path: ir-remote/TV-Remote.apk
+
+      - name: Publish release (direct download on the phone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ir-remote-v${{ github.run_number }}
+          name: TV Remote v1.0.${{ github.run_number }}
+          body: IR TV remote APK built from ir-remote/. Install TV-Remote.apk on the phone.
+          files: ir-remote/TV-Remote.apk
+          make_latest: true
