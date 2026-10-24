@@ -88,6 +88,16 @@ import coil.compose.AsyncImage
 import com.example.widgetnotes.data.ImageStore
 import com.example.widgetnotes.data.Note
 import com.example.widgetnotes.data.NoteRepository
+import com.example.widgetnotes.data.Repeat
+import com.example.widgetnotes.data.RepeatUnit
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.text.input.KeyboardType
+import java.time.DayOfWeek
 import com.example.widgetnotes.reminders.Reminders
 import com.example.widgetnotes.ui.NotesTheme
 import com.example.widgetnotes.ui.LocalGlass
@@ -104,7 +114,27 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
-private data class EditorResult(val title: String, val body: String, val images: List<String>, val remindAt: Long?)
+private data class EditorResult(
+    val title: String,
+    val body: String,
+    val images: List<String>,
+    val remindAt: Long?,
+    val repeat: Repeat?,
+)
+
+private fun isWeekend(at: Long): Boolean =
+    Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()).dayOfWeek.let { it == DayOfWeek.SATURDAY || it == DayOfWeek.SUNDAY }
+
+/** Repeat presets offered in the menu. */
+private val REPEAT_PRESETS = listOf(
+    RepeatUnit.DAY to 1,
+    RepeatUnit.WEEKDAYS to 1,
+    RepeatUnit.WEEK to 1,
+    RepeatUnit.WEEK to 2,
+    RepeatUnit.MONTH to 1,
+    RepeatUnit.MONTH to 3,
+    RepeatUnit.YEAR to 1,
+)
 
 /**
  * Floating editor. Opened from the widget it appears over the home screen.
@@ -177,7 +207,7 @@ class EditNoteActivity : ComponentActivity() {
         if (finishing) return
         finishing = true
         lifecycleScope.launch {
-            NoteRepository.save(applicationContext, existing?.id, r.title, r.body, r.images, r.remindAt)
+            NoteRepository.save(applicationContext, existing?.id, r.title, r.body, r.images, r.remindAt, r.repeat)
             // Photos removed in this edit are gone for good
             ImageStore.delete(applicationContext, existing?.images.orEmpty() - r.images.toSet())
             finish()
@@ -219,6 +249,15 @@ private fun EditorSheet(
     var body by rememberSaveable { mutableStateOf(initial?.body.orEmpty()) }
     var images by rememberSaveable { mutableStateOf(initialImages) }
     var remindAt by rememberSaveable { mutableStateOf(initial?.remindAt) }
+    // Repeat rule being edited (unit + interval); the anchor is the first occurrence
+    var repeatUnit by rememberSaveable { mutableStateOf(initial?.repeat?.unit) }
+    var repeatEvery by rememberSaveable { mutableIntStateOf(initial?.repeat?.every ?: 1) }
+    var repeatAnchor by rememberSaveable { mutableStateOf(initial?.repeat?.anchor) }
+    // A repeat chosen before any time was set: we ask for the first time, then apply it
+    var pendingUnit by rememberSaveable { mutableStateOf<RepeatUnit?>(null) }
+    var pendingEvery by rememberSaveable { mutableIntStateOf(1) }
+    var showRepeatMenu by remember { mutableStateOf(false) }
+    var showCustomRepeat by rememberSaveable { mutableStateOf(false) }
     var pendingPhoto by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraAutoLaunched by rememberSaveable { mutableStateOf(false) }
     var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -229,7 +268,13 @@ private fun EditorSheet(
     var pickedDateUtc by rememberSaveable { mutableStateOf<Long?>(null) }
     val focus = remember { FocusRequester() }
 
-    fun result() = EditorResult(title, body, images, remindAt)
+    fun currentRepeat(): Repeat? {
+        val unit = repeatUnit ?: return null
+        val at = remindAt ?: return null
+        return Repeat(unit, repeatEvery, repeatAnchor ?: at)
+    }
+
+    fun result() = EditorResult(title, body, images, remindAt, currentRepeat())
     fun added() = images - initialImages.toSet()
     fun toast(msg: String) = Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 
@@ -273,8 +318,23 @@ private fun EditorSheet(
         if (!granted) toast("Notifications are off, so the reminder can't pop up")
     }
 
-    fun setReminder(at: Long) {
-        if (at <= System.currentTimeMillis()) {
+    fun clearReminder() {
+        remindAt = null
+        repeatUnit = null
+        repeatAnchor = null
+    }
+
+    fun setReminder(chosen: Long) {
+        val now = System.currentTimeMillis()
+        var at = chosen
+        val unit = repeatUnit
+        if (unit != null) {
+            // Weekdays-only jobs can't start on a weekend
+            if (unit == RepeatUnit.WEEKDAYS && isWeekend(at)) at = Repeat(unit, 1, at).nextAfter(at)
+            // For a repeating job, a time that has passed just means "start from the next one"
+            if (at <= now) at = Repeat(unit, repeatEvery, at).nextAfter(now)
+            repeatAnchor = at
+        } else if (at <= now) {
             toast("That time has already passed")
             return
         }
@@ -288,6 +348,25 @@ private fun EditorSheet(
 
     fun atLocal(date: LocalDate, hour: Int, minute: Int): Long =
         LocalDateTime.of(date, LocalTime.of(hour, minute)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    fun applyRepeat(unit: RepeatUnit?, every: Int) {
+        if (unit == null) {
+            repeatUnit = null
+            repeatAnchor = null
+            return
+        }
+        val at = remindAt
+        if (at == null) {
+            // Ask when the first one is; the rule is applied once a time is picked
+            pendingUnit = unit
+            pendingEvery = every
+            showDatePicker = true
+            return
+        }
+        repeatUnit = unit
+        repeatEvery = every.coerceAtLeast(1)
+        setReminder(at) // re-anchors and fixes weekend / past times
+    }
 
     LaunchedEffect(Unit) {
         if (startWithCamera && !cameraAutoLaunched) {
@@ -405,17 +484,22 @@ private fun EditorSheet(
                 }
 
                 remindAt?.let { at ->
+                    val rule = currentRepeat()
                     AssistChip(
-                        onClick = { showReminderMenu = true },
-                        label = { Text(Reminders.format(at)) },
+                        onClick = { if (rule != null) showRepeatMenu = true else showReminderMenu = true },
+                        label = { Text(if (rule != null) "Next ${Reminders.format(at)} · ${rule.label}" else Reminders.format(at)) },
                         leadingIcon = {
-                            Icon(painterResource(R.drawable.ic_bell), contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+                            Icon(
+                                painterResource(if (rule != null) R.drawable.ic_repeat else R.drawable.ic_bell),
+                                contentDescription = null,
+                                modifier = Modifier.size(AssistChipDefaults.IconSize),
+                            )
                         },
                         trailingIcon = {
                             Icon(
                                 Icons.Filled.Close,
                                 contentDescription = "Remove reminder",
-                                modifier = Modifier.size(AssistChipDefaults.IconSize).clickable { remindAt = null },
+                                modifier = Modifier.size(AssistChipDefaults.IconSize).clickable { clearReminder() },
                             )
                         },
                         modifier = Modifier.padding(horizontal = 14.dp),
@@ -466,7 +550,47 @@ private fun EditorSheet(
                             if (remindAt != null) {
                                 DropdownMenuItem(
                                     text = { Text("Remove reminder") },
-                                    onClick = { showReminderMenu = false; remindAt = null },
+                                    onClick = { showReminderMenu = false; clearReminder() },
+                                )
+                            }
+                        }
+                    }
+                    // Repeat: weekly, monthly…
+                    Box {
+                        IconButton(onClick = { showRepeatMenu = true }) {
+                            Icon(
+                                painterResource(R.drawable.ic_repeat),
+                                contentDescription = "Repeat",
+                                tint = if (repeatUnit != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        DropdownMenu(expanded = showRepeatMenu, onDismissRequest = { showRepeatMenu = false }) {
+                            fun selected(unit: RepeatUnit?, every: Int) =
+                                repeatUnit == unit && (unit == null || repeatEvery == every)
+                            DropdownMenuItem(
+                                text = { Text("Does not repeat") },
+                                trailingIcon = { if (repeatUnit == null) Icon(Icons.Filled.Check, contentDescription = "Selected") },
+                                onClick = { showRepeatMenu = false; applyRepeat(null, 1) },
+                            )
+                            REPEAT_PRESETS.forEach { (unit, every) ->
+                                val label = Repeat(unit, every, 0).label
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    trailingIcon = { if (selected(unit, every)) Icon(Icons.Filled.Check, contentDescription = "Selected") },
+                                    onClick = { showRepeatMenu = false; applyRepeat(unit, every) },
+                                )
+                            }
+                            val isCustom = repeatUnit != null && REPEAT_PRESETS.none { selected(it.first, it.second) }
+                            DropdownMenuItem(
+                                text = { Text(if (isCustom) "Custom: ${currentRepeat()?.label ?: ""}" else "Custom…") },
+                                trailingIcon = { if (isCustom) Icon(Icons.Filled.Check, contentDescription = "Selected") },
+                                onClick = { showRepeatMenu = false; showCustomRepeat = true },
+                            )
+                            if (remindAt != null) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Change time…") },
+                                    onClick = { showRepeatMenu = false; showDatePicker = true },
                                 )
                             }
                         }
@@ -485,32 +609,91 @@ private fun EditorSheet(
             initialSelectedDateMillis = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { showDatePicker = false; pendingUnit = null },
             confirmButton = {
                 TextButton(onClick = {
                     showDatePicker = false
                     pickedDateUtc = dateState.selectedDateMillis
                 }) { Text("Next") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { showDatePicker = false; pendingUnit = null }) { Text("Cancel") } },
         ) {
-            DatePicker(state = dateState)
+            DatePicker(
+                state = dateState,
+                title = {
+                    Text(
+                        if (pendingUnit != null || repeatUnit != null) "First time" else "Remind me on",
+                        modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp),
+                    )
+                },
+            )
         }
     }
 
     pickedDateUtc?.let { dateUtc ->
         val timeState = rememberTimePickerState(initialHour = 9, initialMinute = 0, is24Hour = true)
         AlertDialog(
-            onDismissRequest = { pickedDateUtc = null },
+            onDismissRequest = { pickedDateUtc = null; pendingUnit = null },
             confirmButton = {
                 TextButton(onClick = {
                     val date = Instant.ofEpochMilli(dateUtc).atZone(ZoneOffset.UTC).toLocalDate()
                     pickedDateUtc = null
+                    pendingUnit?.let { unit ->
+                        repeatUnit = unit
+                        repeatEvery = pendingEvery
+                        pendingUnit = null
+                    }
                     setReminder(atLocal(date, timeState.hour, timeState.minute))
-                }) { Text("Set reminder") }
+                }) { Text("Set") }
             },
-            dismissButton = { TextButton(onClick = { pickedDateUtc = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { pickedDateUtc = null; pendingUnit = null }) { Text("Cancel") } },
             text = { TimePicker(state = timeState) },
+        )
+    }
+
+    // ---- Custom repeat: every N days / weeks / months / years ----
+    if (showCustomRepeat) {
+        var number by rememberSaveable { mutableStateOf(repeatEvery.toString()) }
+        var unit by rememberSaveable {
+            mutableStateOf(repeatUnit?.takeIf { it != RepeatUnit.WEEKDAYS } ?: RepeatUnit.WEEK)
+        }
+        val n = number.toIntOrNull()?.takeIf { it in 1..999 }
+        AlertDialog(
+            onDismissRequest = { showCustomRepeat = false },
+            title = { Text("Repeat every") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = number,
+                        onValueChange = { v -> number = v.filter { it.isDigit() }.take(3) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = n == null,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.size(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            RepeatUnit.DAY to "days",
+                            RepeatUnit.WEEK to "weeks",
+                            RepeatUnit.MONTH to "months",
+                            RepeatUnit.YEAR to "years",
+                        ).forEach { (u, label) ->
+                            FilterChip(selected = unit == u, onClick = { unit = u }, label = { Text(label) })
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = n != null,
+                    onClick = {
+                        showCustomRepeat = false
+                        applyRepeat(unit, n ?: 1)
+                    },
+                ) { Text("Done") }
+            },
+            dismissButton = { TextButton(onClick = { showCustomRepeat = false }) { Text("Cancel") } },
         )
     }
 

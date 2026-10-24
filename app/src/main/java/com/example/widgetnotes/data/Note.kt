@@ -12,9 +12,17 @@ data class Note(
     val updatedAt: Long = System.currentTimeMillis(),
     /** File names inside the app's private images folder. */
     val images: List<String> = emptyList(),
-    /** Reminder time (epoch millis), or null for no reminder. */
+    /** Reminder time (epoch millis), or null for no reminder. For repeating jobs: the next occurrence. */
     val remindAt: Long? = null,
+    /** Repeat rule for recurring jobs (weekly, monthly…), or null for a one-off note. */
+    val repeat: Repeat? = null,
+    /** A repeating job whose time has come and that hasn't been ticked off yet. */
+    val dueNow: Boolean = false,
+    /** When a repeating job was last ticked off. */
+    val lastDoneAt: Long? = null,
 ) {
+    val isRecurring: Boolean get() = repeat != null
+
     /** Short label used in notifications, the undo banner, etc. */
     val label: String
         get() = title.ifBlank { body.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty() }
@@ -29,6 +37,9 @@ data class Note(
         .put("updatedAt", updatedAt)
         .put("images", JSONArray(images))
         .apply { remindAt?.let { put("remindAt", it) } }
+        .apply { repeat?.let { put("repeat", it.toJson()) } }
+        .put("dueNow", dueNow)
+        .apply { lastDoneAt?.let { put("lastDoneAt", it) } }
 
     companion object {
         fun fromJson(o: JSONObject): Note {
@@ -42,6 +53,9 @@ data class Note(
                 updatedAt = o.optLong("updatedAt", System.currentTimeMillis()),
                 images = imgs,
                 remindAt = if (o.has("remindAt")) o.getLong("remindAt") else null,
+                repeat = Repeat.fromJson(o.optJSONObject("repeat")),
+                dueNow = o.optBoolean("dueNow"),
+                lastDoneAt = if (o.has("lastDoneAt")) o.getLong("lastDoneAt") else null,
             )
         }
     }

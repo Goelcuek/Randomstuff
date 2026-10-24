@@ -301,17 +301,22 @@ private fun NoteCard(
                     modifier = Modifier.padding(end = 10.dp),
                 )
             }
-            note.remindAt?.let { at ->
-                val tint = if (at < System.currentTimeMillis()) Color(0xFFFF8A80) else MaterialTheme.colorScheme.primary
-                Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource(R.drawable.ic_bell), contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+            Reminders.describe(note)?.let { (text, due) ->
+                val tint = if (due) Color(0xFFFF8A80) else MaterialTheme.colorScheme.primary
+                Row(Modifier.padding(top = 6.dp, end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painterResource(if (note.isRecurring) R.drawable.ic_repeat else R.drawable.ic_bell),
+                        contentDescription = null,
+                        tint = tint,
+                        modifier = Modifier.size(14.dp),
+                    )
                     Spacer(Modifier.size(4.dp))
-                    Text(Reminders.format(at), style = MaterialTheme.typography.labelMedium, color = tint)
+                    Text(text, style = MaterialTheme.typography.labelMedium, color = tint)
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = note.done, onCheckedChange = { onToggleDone() })
-                Text("Done", style = MaterialTheme.typography.labelLarge)
+                Text(if (note.isRecurring) "Done this time" else "Done", style = MaterialTheme.typography.labelLarge)
             }
         }
     }

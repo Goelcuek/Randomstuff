@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.widgetnotes"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
     }
 
     // One fixed key for every build, so new APKs install over old ones (keeps your notes).

@@ -320,18 +320,19 @@ private fun NoteRow(note: Note) {
             }
 
             val extraPhotos = note.images.size - 1
-            if (note.remindAt != null || extraPhotos > 0) {
+            val schedule = Reminders.describe(note)
+            if (schedule != null || extraPhotos > 0) {
                 Row(GlanceModifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    note.remindAt?.let { at ->
-                        val tint = if (at < System.currentTimeMillis()) c.warn else c.accent
+                    schedule?.let { (text, due) ->
+                        val tint = if (due) c.warn else c.accent
                         Image(
-                            provider = ImageProvider(R.drawable.ic_bell),
-                            contentDescription = "Reminder",
+                            provider = ImageProvider(if (note.isRecurring) R.drawable.ic_repeat else R.drawable.ic_bell),
+                            contentDescription = if (note.isRecurring) "Repeats" else "Reminder",
                             modifier = GlanceModifier.size(13.dp),
                             colorFilter = ColorFilter.tint(tint),
                         )
                         Spacer(GlanceModifier.width(4.dp))
-                        Text(Reminders.format(at), style = TextStyle(tint, fontSize = 12.sp))
+                        Text(text, maxLines = 1, style = TextStyle(tint, fontSize = 12.sp, fontWeight = if (due) FontWeight.Bold else FontWeight.Normal))
                         Spacer(GlanceModifier.width(10.dp))
                     }
                     if (extraPhotos > 0) {

@@ -16,6 +16,7 @@ An Android note-taking app whose home-screen widget can fill the whole screen an
 - Filter with **All / Open / Done** tabs (remembered per widget)
 - Tap **Write a note…** to type a new note, the **camera** button for a photo note, or any note to edit it — a floating editor opens over the home screen; tap outside or press Back to save
 - Tap a photo to view it full screen: pinch or double-tap to zoom, drag to pan, swipe for the next photo
+- **Repeating jobs**: tap the ↻ button in the editor → Daily, Weekdays, Weekly, Every 2 weeks, Monthly, Every 3 months, Yearly or Custom (every N days/weeks/months/years). When it's time the job shows **Due**; ticking it off rolls it to the next date
 - In the editor: take photos, attach from gallery, set a **reminder** (presets or any date/time) — it pops up as a notification with a *Mark done* button
 
 ## Structure

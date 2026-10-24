@@ -44,7 +44,10 @@ object NoteRepository {
         body: String,
         images: List<String>,
         remindAt: Long?,
+        repeat: Repeat? = null,
     ) {
+        // A repeating job needs a time to repeat from
+        val rule = repeat?.takeIf { remindAt != null }
         val t = title.trim()
         val b = body.trim()
         val existing = id?.let { get(context, it) }
@@ -62,22 +65,57 @@ object NoteRepository {
                     val contentChanged = it.title != t || it.body != b || it.images != images
                     it.copy(
                         title = t, body = b, images = images, remindAt = remindAt,
+                        repeat = rule,
+                        // Rescheduling a due job (or making it one-off) clears the "due" state
+                        dueNow = rule != null && it.dueNow && it.remindAt == remindAt,
+                        done = if (rule != null) false else it.done,
                         updatedAt = if (contentChanged) now else it.updatedAt,
                     )
                 }
             } else {
-                s.notes + Note(id = now, title = t, body = b, images = images, remindAt = remindAt, updatedAt = now)
+                s.notes + Note(id = now, title = t, body = b, images = images, remindAt = remindAt, repeat = rule, updatedAt = now)
             }
             s.copy(notes = notes, recentlyDeleted = null)
         }
     }
 
+    /** Checkbox: one-off notes toggle done; repeating jobs are ticked off for this round. */
     suspend fun toggleDone(context: Context, id: Long) = mutate(context) { s ->
-        s.copy(notes = s.notes.update(id) { it.copy(done = !it.done) }, recentlyDeleted = null)
+        val now = System.currentTimeMillis()
+        s.copy(
+            notes = s.notes.update(id) { if (it.isRecurring) it.completed(now) else it.copy(done = !it.done) },
+            recentlyDeleted = null,
+        )
     }
 
-    suspend fun setDone(context: Context, id: Long, done: Boolean) = mutate(context) { s ->
-        s.copy(notes = s.notes.update(id) { it.copy(done = done) })
+    /** "Mark done" from a notification. */
+    suspend fun markDone(context: Context, id: Long) = mutate(context) { s ->
+        val now = System.currentTimeMillis()
+        s.copy(notes = s.notes.update(id) { it.completed(now) })
+    }
+
+    /**
+     * A reminder went off. One-off: the reminder is used up. Repeating job: it's now due
+     * (shown as "Due" until ticked) and the next occurrence is scheduled right away.
+     */
+    suspend fun reminderFired(context: Context, id: Long) = mutate(context) { s ->
+        val now = System.currentTimeMillis()
+        s.copy(notes = s.notes.update(id) { n ->
+            val r = n.repeat
+            if (r == null) n.copy(remindAt = null)
+            else n.copy(dueNow = true, remindAt = r.nextAfter(maxOf(now, n.remindAt ?: now)))
+        })
+    }
+
+    private fun Note.completed(now: Long): Note {
+        val r = repeat ?: return copy(done = true)
+        return if (dueNow) {
+            // Did this round's job — next one is already scheduled
+            copy(dueNow = false, lastDoneAt = now)
+        } else {
+            // Done ahead of time — skip to the occurrence after the upcoming one
+            copy(remindAt = r.nextAfter(maxOf(now, remindAt ?: now)), lastDoneAt = now)
+        }
     }
 
     suspend fun togglePinned(context: Context, id: Long) = mutate(context) { s ->
@@ -167,6 +205,7 @@ object NoteRepository {
     private fun sort(notes: List<Note>) = notes.sortedWith(
         compareByDescending<Note> { it.pinned }
             .thenBy { it.done }
+            .thenByDescending { it.dueNow }
             .thenByDescending { it.updatedAt }
     )
 

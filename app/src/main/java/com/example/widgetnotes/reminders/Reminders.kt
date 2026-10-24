@@ -121,6 +121,7 @@ object Reminders {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .apply { note.repeat?.let { setSubText(it.label) } }
             .setAutoCancel(true)
             .setContentIntent(open)
             .addAction(R.drawable.ic_check, "Mark done", done)
@@ -130,6 +131,20 @@ object Reminders {
             ?.let { builder.setStyle(NotificationCompat.BigPictureStyle().bigPicture(it).setSummaryText(text)) }
 
         NotificationManagerCompat.from(context).notify(requestCode(note.id), builder.build())
+    }
+
+    /**
+     * Line shown under a note in the widget/app, and whether it should be highlighted as due.
+     * e.g. "Sat 09:00 · Weekly", "Due · Monthly", "Done today · next Mon 09:00".
+     */
+    fun describe(note: Note, now: Long = System.currentTimeMillis()): Pair<String, Boolean>? {
+        val at = note.remindAt ?: return null
+        val r = note.repeat ?: return format(at) to (at < now)
+        if (note.dueNow) return "Due · ${r.label}" to true
+        val doneToday = note.lastDoneAt?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() == LocalDate.now()
+        } == true
+        return (if (doneToday) "Done today · next ${format(at)}" else "${format(at)} · ${r.label}") to false
     }
 
     /** "Today 14:30", "Tomorrow 09:00", or e.g. "Fri 16 Oct, 09:00". */
@@ -160,12 +175,12 @@ class ReminderReceiver : BroadcastReceiver() {
                         val note = NoteRepository.get(app, id)
                         if (note != null && !note.done) {
                             Reminders.showNotification(app, note)
-                            NoteRepository.clearReminder(app, id)
+                            NoteRepository.reminderFired(app, id)
                         }
                     }
                     Reminders.ACTION_DONE -> {
                         NotificationManagerCompat.from(app).cancel(Reminders.requestCode(id))
-                        NoteRepository.setDone(app, id, true)
+                        NoteRepository.markDone(app, id)
                     }
                 }
             } finally {
@@ -188,7 +203,7 @@ class BootReceiver : BroadcastReceiver() {
                     .filter { !it.done && it.remindAt != null && it.remindAt <= now }
                     .forEach {
                         Reminders.showNotification(app, it)
-                        NoteRepository.clearReminder(app, it.id)
+                        NoteRepository.reminderFired(app, it.id)
                     }
                 Reminders.rescheduleAll(app, NoteRepository.state(app).value.notes)
             } finally {
