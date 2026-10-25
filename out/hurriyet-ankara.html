@@ -1,0 +1,166 @@
+
+
+
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+
+    <!-- Google Tag Manager -->
+    <script>
+        (function (w, d, s, l, i) {
+            w[l] = w[l] || [];
+            w[l].push({
+                'gtm.start': new Date().getTime(),
+                event: 'gtm.js'
+            });
+            var f = d.getElementsByTagName(s)[0],
+                j = d.createElement(s),
+                dl = l != 'dataLayer' ? '&l=' + l : '';
+            j.async = true;
+            j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+            f.parentNode.insertBefore(j, f);
+        })(window, document, 'script', 'dataLayer', 'GTM-NVDWP6');
+    </script>
+    <!-- End Google Tag Manager -->
+
+
+
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>404 hata sayfası </title>
+    <style type="text/css">
+        <!--
+        body {
+            background-color: #fff;
+            font-family: sans-serif;
+            margin: 0px;
+            padding: 0px;
+        }
+
+        .ana_tasiyici {
+            width: 550px;
+            height: 420px;
+            padding: 0px;
+            margin: auto;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin: -210px auto auto -275px;
+        }
+
+        .tasiyici_ust {
+            width: 550px;
+            text-align: center;
+        }
+
+        .tasiyici_alt {
+            width: 550px;
+            text-align: center;
+            float: left;
+            margin-top: 20px;
+        }
+
+        .sol {
+            padding-top: 45px;
+            float: left;
+            height: 200px;
+        }
+
+        .orta {
+            height: 200px;
+        }
+
+        .sag {
+            padding-top: 45px;
+            float: right;
+            height: 200px;
+        }
+
+        .hata {
+            font-size: 150px;
+            color: #d5d5d5;
+            font-weight: bold;
+            height: 155px;
+            font-style: italic;
+        }
+
+        .uyari {
+            font-size: 30px;
+            color: #d5d5d5;
+            font-weight: bold;
+        }
+
+        .uyari_text {
+            font-size: 16px;
+            color: #b1b1b1;
+        }
+
+        .uyari_text p {
+            margin: 0 0 10px;
+        }
+
+        .uyari_text p a {
+            text-decoration: none;
+            color: #e40203;
+        }
+
+        .uyari_text p a:hover {
+            text-decoration: underline;
+        }
+        -->
+    </style>
+
+</head>
+
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript>
+    <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-NVDWP6"
+            height="0" width="0" style="display:none;visibility:hidden"></iframe>
+</noscript>
+<!-- End Google Tag Manager (noscript) -->
+
+
+    <div class="ana_tasiyici">
+        <div class="tasiyici_ust">
+            
+            <div class="orta">
+                <div class="hata">404</div>
+                <div class="uyari">Sayfa Bulunamadı</div>
+            </div>
+            
+        </div>
+        <div class="tasiyici_alt">
+            <div class="uyari_text">
+                <p>
+                    <strong><span id="countdown"></span></strong> saniye içinde ana sayfaya yönlendirileceksiniz.
+                </p>
+                <p>
+                    Beklemek istemiyorsanız <a href="https://www.hurriyet.com.tr">tıklayın...</a>
+                </p>
+            </div>
+        </div>
+        <div class="tasiyici_alt">
+            <a href="anasayfa" target="_blank">
+                <img src="https://static.hurriyet.com.tr/static/images/hurriyet/hurriyet-logo.png" width="119" height="33" alt="" border="0" />
+            </a>
+        </div>
+    </div>
+    <script src="https://static.hurriyet.com.tr/static/scripts/hurriyet/jquery.min.js?v=azure-3712"></script>
+
+        <script type="text/javascript">
+            function counter($el, n) {
+                (function loop() {
+                    $el.html(n);
+                    if (n--) {
+                        setTimeout(loop, 1000);
+                    } else if (n <= 0) {
+                       location.replace("https://www.hurriyet.com.tr")
+                    }
+                })();
+            }
+
+            counter($('#countdown'), 5);
+        </script>
+</body>
+</html>

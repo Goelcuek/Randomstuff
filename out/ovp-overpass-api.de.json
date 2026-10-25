@@ -1,0 +1,92 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-25T10:46:06Z",
+    "timestamp_areas_base": "2026-10-25T05:26:50Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "relation",
+  "id": 6799065,
+  "tags": {
+    "colour": "orange",
+    "name": "OGÜ - Çankaya",
+    "network": "EsTram",
+    "operator": "EsTram",
+    "public_transport:version": "2",
+    "ref": "7",
+    "route": "tram",
+    "type": "route",
+    "wikidata": "Q136661334"
+  }
+},
+{
+  "type": "relation",
+  "id": 6799070,
+  "tags": {
+    "colour": "orange",
+    "name": "Çankaya - OGÜ",
+    "network": "EsTram",
+    "operator": "EsTram",
+    "public_transport:version": "2",
+    "ref": "7",
+    "route": "tram",
+    "type": "route",
+    "wikidata": "Q136661334"
+  }
+},
+{
+  "type": "relation",
+  "id": 6800375,
+  "tags": {
+    "colour": "deepskyblue",
+    "from": "OGÜ",
+    "name": "OGÜ - Otogar",
+    "network": "EsTram",
+    "operator": "EsTram",
+    "public_transport:version": "2",
+    "ref": "T4",
+    "route": "tram",
+    "to": "Otogar",
+    "type": "route",
+    "wikidata": "Q136661333"
+  }
+},
+{
+  "type": "relation",
+  "id": 6800648,
+  "tags": {
+    "colour": "yellow",
+    "name": "Osmangazi - 75.Yıl",
+    "network": "EsTram",
+    "operator": "EsTram",
+    "public_transport:version": "2",
+    "ref": "12",
+    "route": "tram",
+    "type": "route",
+    "wikidata": "Q136661338"
+  }
+},
+{
+  "type": "relation",
+  "id": 6800876,
+  "tags": {
+    "colour": "yellow",
+    "from": "Şehir Hastanesi",
+    "name": "Şehir Hastanesi - Kumlubel",
+    "network": "EsTram",
+    "operator": "EsTram",
+    "public_transport:version": "2",
+    "ref": "T10",
+    "route": "tram",
+    "to": "Kumlubel",
+    "type": "route",
+    "wikidata": "Q136661337"
+  }
+}
+
+  ]
+}
