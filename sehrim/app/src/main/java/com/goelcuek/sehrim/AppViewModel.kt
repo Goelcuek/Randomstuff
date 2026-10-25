@@ -89,6 +89,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         return groups.values.map { Line(it.first().mode, it.first().ref, it.sortedByDescending { r -> r.stops.size }) }
             .sortedWith(compareBy<Line>({ Modes.order.indexOf(it.mode).let { i -> if (i < 0) 99 else i } }, { refSortKey(it.ref) }, { it.ref }))
+            .onEach { it.search } // arama metnini arka planda hazırla
     }
 
     private fun refSortKey(ref: String): String {

@@ -65,6 +65,10 @@ data class StaticData(
 
 /** Aynı hat numarasının (gidiş/dönüş gibi) varyantlarını bir arada tutar. */
 data class Line(val mode: String, val ref: String, val variants: List<Route>) {
+    /** Arama için normalize edilmiş metin (hat adı, uçlar, durak adları). */
+    val search: String by lazy {
+        norm(variants.joinToString(" ") { r -> "${r.name} ${r.from} ${r.to} " + r.stops.joinToString(" ") { it.name } })
+    }
     val key get() = "$mode|$ref|${variants.first().id}"
     val title get() = ref.ifBlank { variants.first().name.ifBlank { "Hat" } }
     val subtitle: String

@@ -33,17 +33,34 @@ def fanatik(slug):
 
 def eskisehir_eo():
     t = get("https://www.eskisehireo.org.tr/eskisehir-nobetci-eczaneler")
-    items = []
+    items, w = [], None
     for blk in t.split('class="col-md-12 nobetci"')[1:]:
         m = re.search(r'<strong>(.*?)</strong>\s*-\s*(.*?)</h4>', blk, re.S)
         if not m: continue
         a = re.search(r"fa-home'></i>(.*?)<br", blk, re.S)
         p = re.search(r'tel:([0-9]+)', blk)
         c = re.search(r'maps\?q=(-?[0-9.]+),(-?[0-9.]+)', blk)
-        w = re.search(r'([0-9.]+ [0-9:]+) / ([0-9.]+ [0-9:]+) nöbetçidir', blk)
         items.append({"n": clean(m.group(1)).title(), "d": clean(m.group(2)), "a": clean(a.group(1)) if a else "",
                       "p": p.group(1) if p else "", "lat": float(c.group(1)) if c else None, "lon": float(c.group(2)) if c else None})
-    return {"source": "eskisehireo.org.tr", "info": w.group(0) if items and w else "", "items": items}
+        w = re.search(r'([0-9.]+ [0-9:]+) / ([0-9.]+ [0-9:]+) nöbetçidir', blk) or w
+    return {"source": "eskisehireo.org.tr", "info": w.group(0) if w else "", "items": items}
+
+MONTHS = ["ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık"]
+
+def duty_date(info, now, change_h, change_m):
+    """Kaynağın tarih metninden nöbet gününü çıkarır; olmazsa saate göre hesaplar."""
+    m = re.search(r"(\d{1,2})\.(\d{2})\.(\d{4})", info)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{int(m.group(1)):02d}"
+    m = re.search(r"(\d{1,2})\s+(\w+)", info)
+    if m and m.group(2).lower() in MONTHS:
+        d = datetime.date(now.year, MONTHS.index(m.group(2).lower()) + 1, int(m.group(1)))
+        if (d - now.date()).days > 180: d = d.replace(year=d.year - 1)
+        if (now.date() - d).days > 180: d = d.replace(year=d.year + 1)
+        return d.isoformat()
+    return (now - datetime.timedelta(hours=change_h, minutes=change_m)).date().isoformat()
+
+CHANGE = {"istanbul": (9, 0), "ankara": (8, 30), "eskisehir": (8, 30)}
 
 def main(outdir):
     os.makedirs(outdir, exist_ok=True)
@@ -62,7 +79,7 @@ def main(outdir):
                 errs.append(repr(e))
         if not res:
             print(slug, "FAILED", errs); continue
-        res.update({"city": name, "updated": now.isoformat(timespec="minutes"), "dutyDate": (now - datetime.timedelta(hours=8, minutes=30)).date().isoformat()})
+        res.update({"city": name, "updated": now.isoformat(timespec="minutes"), "dutyDate": duty_date(res["info"], now, *CHANGE[slug])})
         with open(os.path.join(outdir, f"duty-{slug}.json"), "w", encoding="utf-8") as f:
             json.dump(res, f, ensure_ascii=False, separators=(",", ":"))
         nocoord = sum(1 for i in res["items"] if i["lat"] is None)

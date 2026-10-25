@@ -391,9 +391,7 @@ fun TransitTab(vm: AppViewModel, hasPerm: Boolean, onLocate: () -> Unit, onOpen:
     val q = norm(query.trim())
     val filtered = remember(lines, q, mode) {
         lines.filter { l ->
-            (mode == null || l.mode == mode) && (q.isEmpty() || norm(l.ref).startsWith(q) || l.variants.any { r ->
-                norm("${r.name} ${r.from} ${r.to}").contains(q) || r.stops.any { s -> norm(s.name).contains(q) }
-            })
+            (mode == null || l.mode == mode) && (q.isEmpty() || norm(l.ref).startsWith(q) || l.search.contains(q))
         }
     }
     val nearby = remember(lines, vm.location) { vm.nearbyStops() }

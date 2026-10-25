@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Şehrim – şehir başına sabit veri üretir: eczaneler + toplu taşıma hatları (OpenStreetMap / Overpass)."""
-import json, sys, os, time, math, datetime, urllib.request, urllib.parse
+import json, sys, os, time, math, datetime, socket, urllib.request, urllib.parse
+
+# overpass-api.de'ye IPv6 ile bağlanmak runner'larda ~30 sn takılıyor: IPv4'e zorla
+_gai = socket.getaddrinfo
+socket.getaddrinfo = lambda host, port, family=0, *a, **k: _gai(host, port, socket.AF_INET, *a, **k)
 
 UA = "Sehrim-datagen/1.0 (+https://github.com/Goelcuek/Randomstuff)"
-ENDPOINTS = ["https://overpass-api.de/api/interpreter",
-             "https://overpass.private.coffee/api/interpreter",
-             "https://maps.mail.ru/osm/tools/overpass/api/interpreter"]
+ENDPOINTS = ["https://overpass-api.de/api/interpreter"]
 CITIES = {"eskisehir": "Eskişehir", "ankara": "Ankara", "istanbul": "İstanbul"}
 MODES = "bus|trolleybus|minibus|share_taxi|tram|light_rail|subway|train|ferry|monorail|funicular|aerialway"
 STOP_ROLES = ("stop", "stop_entry_only", "stop_exit_only")
@@ -20,7 +22,7 @@ def overpass(q):
         try:
             data = urllib.parse.urlencode({"data": q}).encode()
             req = urllib.request.Request(ep, data=data, headers={"User-Agent": UA, "Accept": "*/*"})
-            with urllib.request.urlopen(req, timeout=620) as r:
+            with urllib.request.urlopen(req, timeout=700) as r:
                 body = r.read()
             d = json.loads(body)
             if d.get("remark") and not d.get("elements"):
@@ -30,7 +32,7 @@ def overpass(q):
         except Exception as e:
             last = e
             print(f"  overpass hata {ep.split('/')[2]} {time.time()-t0:.0f} s: {e}", flush=True)
-            time.sleep(20 * (attempt + 1))
+            time.sleep(30 * (attempt + 1))
     raise last
 
 
