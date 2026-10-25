@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nöbetçi Eczaneler | İstanbul Eczacı Odası</title>
+<meta name="description" content="İstanbul ve Yalova&#039;daki nöbetçi eczaneler: size en yakın nöbetçi eczane, ilçelere göre liste, adres, telefon ve harita.">
+<link rel="canonical" href="https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="İstanbul Eczacı Odası">
+<meta property="og:title" content="Nöbetçi Eczaneler | İstanbul Eczacı Odası">
+<meta property="og:description" content="İstanbul ve Yalova&#039;daki nöbetçi eczaneler: size en yakın nöbetçi eczane, ilçelere göre liste, adres, telefon ve harita.">
+<meta property="og:url" content="https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/">
+<meta property="og:locale" content="tr_TR">
+<meta name="theme-color" content="#C80C0F">
+<meta name="apple-itunes-app" content="app-id=6460820423, app-argument=https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/">
+<link rel="icon" href="/nobetci-eczane/favicon.ico">
+<link rel="manifest" href="/nobetci-eczane/manifest.json">
+<link rel="preload" href="/nobetci-eczane/yeni/fonts/Poppins-Medium.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="/nobetci-eczane/yeni/fonts/Poppins-SemiBold.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="/nobetci-eczane/yeni/css/tokens.css">
+<link rel="stylesheet" href="/nobetci-eczane/yeni/css/app.css">
+<script type="module" src="/nobetci-eczane/yeni/js/main.js"></script>
+</head>
+<body data-map="off">
+<a class="skip" href="#app">İçeriğe geç</a>
+<h1 class="sr-only">Nöbetçi Eczaneler</h1>
+
+<header class="topbar">
+  <div class="brand"><span class="brand__logo"><img src="/nobetci-eczane/yeni/img/logop.png" alt="" width="34" height="34"></span>
+    <span class="brand__org"><small>TEB 1. Bölge</small><b>İstanbul Eczacı Odası</b></span></div>
+  <span class="topbar__sep" aria-hidden="true"></span>
+  <p class="topbar__title">Nöbetçi Eczaneler</p>
+  <span class="topbar__day" id="topbar-day"></span>
+  <button type="button" class="topbar__report press" data-action="report-open" data-scope="list" aria-haspopup="dialog">
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M5.2 4.6h13.6A1.8 1.8 0 0 1 20.6 6.4v8.4a1.8 1.8 0 0 1-1.8 1.8H9.2L4 20.8V6.4A1.8 1.8 0 0 1 5.2 4.6Z"/></svg>
+    Hata bildir</button>
+  <button type="button" class="topbar__app press" data-action="app-open" aria-haspopup="dialog" aria-pressed="false">
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2" stroke-linecap="round"/></svg>
+    Mobil uygulama</button>
+</header>
+<div id="band" class="band-slot"></div>
+
+<div class="map-shell" role="region" aria-label="Harita — aynı eczaneler listede de var">
+  <div id="map" class="map"></div>
+  <p id="map-fallback" class="map-fallback" hidden>Harita şu an yüklenemedi. Liste ve yol tarifi çalışıyor.</p>
+</div>
+
+<main id="app" class="app" tabindex="-1">
+  <noscript><div class="state"><b>Nöbetçi eczaneleri görmek için JavaScript gerekiyor.</b>
+    <p>Tarayıcınızda JavaScript'i açın.</p></div></noscript>
+</main>
+<div id="live" class="sr-only" aria-live="polite"></div>
+
+<script type="application/json" id="boot">{"token":"v1.1792925131.lyXfrnBXzQ2e.4LLzIev7p8Z7vKoFAsJa5ORwfjfPEAVR_twppFdsrRU","gateUrl":"/api/nobetci-eczane-web/","districts":[{"ilceId":1,"ilceAd":"Adalar","ilId":34},{"ilceId":42,"ilceAd":"Altınova","ilId":77},{"ilceId":43,"ilceAd":"Armutlu","ilId":77},{"ilceId":34,"ilceAd":"Arnavutköy","ilId":34},{"ilceId":38,"ilceAd":"Ataşehir","ilId":34},{"ilceId":2,"ilceAd":"Avcılar","ilId":34},{"ilceId":3,"ilceAd":"Bağcılar","ilId":34},{"ilceId":5,"ilceAd":"Bahçelievler","ilId":34},{"ilceId":4,"ilceAd":"Bakırköy","ilId":34},{"ilceId":39,"ilceAd":"Başakşehir","ilId":34},{"ilceId":6,"ilceAd":"Bayrampaşa","ilId":34},{"ilceId":7,"ilceAd":"Beşiktaş","ilId":34},{"ilceId":8,"ilceAd":"Beykoz","ilId":34},{"ilceId":35,"ilceAd":"Beylikdüzü","ilId":34},{"ilceId":9,"ilceAd":"Beyoğlu","ilId":34},{"ilceId":10,"ilceAd":"Büyükçekmece","ilId":34},{"ilceId":11,"ilceAd":"Çatalca","ilId":34},{"ilceId":40,"ilceAd":"Çekmeköy","ilId":34},{"ilceId":44,"ilceAd":"Çınarcık","ilId":77},{"ilceId":45,"ilceAd":"Çiftlikköy","ilId":77},{"ilceId":14,"ilceAd":"Esenler","ilId":34},{"ilceId":36,"ilceAd":"Esenyurt","ilId":34},{"ilceId":13,"ilceAd":"Eyüp","ilId":34},{"ilceId":15,"ilceAd":"Fatih","ilId":34},{"ilceId":16,"ilceAd":"Gaziosmanpaşa","ilId":34},{"ilceId":17,"ilceAd":"Güngören","ilId":34},{"ilceId":18,"ilceAd":"Kadıköy","ilId":34},{"ilceId":19,"ilceAd":"Kağıthane","ilId":34},{"ilceId":20,"ilceAd":"Kartal","ilId":34},{"ilceId":21,"ilceAd":"Küçükçekmece","ilId":34},{"ilceId":22,"ilceAd":"Maltepe","ilId":34},{"ilceId":23,"ilceAd":"Pendik","ilId":34},{"ilceId":41,"ilceAd":"Sancaktepe","ilId":34},{"ilceId":24,"ilceAd":"Sarıyer","ilId":34},{"ilceId":25,"ilceAd":"Silivri","ilId":34},{"ilceId":26,"ilceAd":"Sultanbeyli","ilId":34},{"ilceId":37,"ilceAd":"Sultangazi","ilId":34},{"ilceId":27,"ilceAd":"Şile","ilId":34},{"ilceId":28,"ilceAd":"Şişli","ilId":34},{"ilceId":46,"ilceAd":"Termal","ilId":77},{"ilceId":29,"ilceAd":"Tuzla","ilId":34},{"ilceId":30,"ilceAd":"Ümraniye","ilId":34},{"ilceId":31,"ilceAd":"Üsküdar","ilId":34},{"ilceId":32,"ilceAd":"Yalova","ilId":77},{"ilceId":33,"ilceAd":"Zeytinburnu","ilId":34}],"dutyDate":"2026-10-25","mapKey":"","app":{"name":"İEO Nöbetçi Eczane","iosId":"6460820423","androidPackage":"com.ieo.nobetcieczane","ios":"https://apps.apple.com/tr/app/ieo-nobetci-eczane/id6460820423","android":"https://play.google.com/store/apps/details?id=com.ieo.nobetcieczane","linksLive":false}}</script>
+</body>
+</html>
