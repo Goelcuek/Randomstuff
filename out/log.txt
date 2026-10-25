@@ -1,0 +1,21 @@
+afad.json 200 56223 https://servisnet.afad.gov.tr/apigateway/deprem/apiv2/event/filter?start=2026-10-23T12:53:18&end=2026-10-25T12:53:18&format=json
+kandilli.html 200 72096 http://www.koeri.boun.edu.tr/scripts/lst0.asp
+orhan.json 200 61111 https://api.orhanaydogdu.com.tr/deprem/kandilli/live
+curl: (28) Connection timed out after 40001 milliseconds
+bedas.html 000 0 https://www.bedas.com.tr/planli-kesintiler
+bedas.html FAIL
+ayedas.html 200 68080 https://www.ayedas.com.tr/hata/404
+baskent.html 200 68194 https://www.baskentedas.com.tr/hata/404
+baskent2.html 200 68194 https://www.baskentedas.com.tr/hata/404
+curl: (28) Connection timed out after 40002 milliseconds
+oedas.html 000 0 https://www.oedas.com.tr/planli-kesintiler
+oedas.html FAIL
+curl: (28) Connection timed out after 40002 milliseconds
+oedas2.html 000 0 https://www.oedas.com.tr/tr/planli-kesintiler
+oedas2.html FAIL
+curl: (28) Connection timed out after 40002 milliseconds
+iski.html 000 0 https://iski.istanbul/abone-hizmetleri/ariza-kesinti/
+iski.html FAIL
+aski.html 200 35075 https://www.aski.gov.tr/tr/Kesinti.aspx
+eski.html 200 205586 https://www.eski.gov.tr/
+eski2.html 404 2721 https://www.eski.gov.tr/Hata/Page404
