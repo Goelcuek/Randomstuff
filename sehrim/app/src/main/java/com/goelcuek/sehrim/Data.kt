@@ -81,7 +81,13 @@ class Repo(private val ctx: Context) {
                 r.optString("t"), r.optString("o"), r.optString("c"), stops, List(g.length()) { g.getString(it) },
             )
         }
-        return StaticData(o.optString("city"), o.optString("updated"), pharmacies, routes)
+        val hs = o.optJSONArray("hospitals") ?: JSONArray()
+        val hospitals = List(hs.length()) { i ->
+            val a = hs.getJSONArray(i)
+            Hospital(a.getString(0), a.getDouble(1), a.getDouble(2), a.optString(3), a.optString(4), a.optString(5),
+                a.optString(6), a.optString(7))
+        }
+        return StaticData(o.optString("city"), o.optString("updated"), pharmacies, routes, hospitals)
     }
 
     // ---------------- Nöbetçi eczaneler ----------------

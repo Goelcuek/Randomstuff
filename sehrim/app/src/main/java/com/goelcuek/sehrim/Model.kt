@@ -61,7 +61,26 @@ data class StaticData(
     val updated: String,
     val pharmacies: List<Pharmacy>,
     val routes: List<Route>,
+    val hospitals: List<Hospital> = emptyList(),
 )
+
+data class Hospital(
+    val name: String,
+    val lat: Double,
+    val lon: Double,
+    val kind: String,        // hospital | clinic | asm
+    val emergency: String,   // yes | no | likely | ""
+    val phone: String,
+    val address: String,
+    val operatorType: String, // government | public | private | ...
+) {
+    val hasEmergency get() = emergency == "yes" || emergency == "likely"
+    val kindLabel get() = when (kind) {
+        "hospital" -> when (operatorType) { "private" -> "Özel hastane"; "government", "public" -> "Devlet hastanesi"; else -> "Hastane" }
+        "asm" -> "Aile sağlığı merkezi"
+        else -> "Poliklinik / sağlık merkezi"
+    }
+}
 
 /** Aynı hat numarasının (gidiş/dönüş gibi) varyantlarını bir arada tutar. */
 data class Line(val mode: String, val ref: String, val variants: List<Route>) {

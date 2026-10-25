@@ -116,6 +116,40 @@ def gen_city(slug, name, outdir):
                       addr(t), t.get("phone", t.get("contact:phone", ""))])
     print("  eczane:", len(pharm), "saatli:", sum(1 for p in pharm if p[3]), flush=True)
 
+    hs = overpass(f'[out:json][timeout:240];{area}(nwr["amenity"~"^(hospital|clinic)$"](area.a);nwr["healthcare"="hospital"](area.a););out center tags;')
+    hospitals = []
+    for e in hs["elements"]:
+        t = e.get("tags", {})
+        lat = e.get("lat", e.get("center", {}).get("lat")); lon = e.get("lon", e.get("center", {}).get("lon"))
+        nm = t.get("name", "")
+        if lat is None or not nm: continue
+        kind = "hospital" if (t.get("amenity") == "hospital" or t.get("healthcare") == "hospital") else "clinic"
+        low = nm.lower()
+        if "aile sağlığı" in low or "asm" in low.split(): kind = "asm"
+        em = t.get("emergency", "")
+        if not em and kind == "hospital" and t.get("operator:type") in ("government", "public"): em = "likely"
+        hospitals.append([nm, round(lat, 6), round(lon, 6), kind, em, t.get("phone", t.get("contact:phone", "")),
+                          addr(t), t.get("operator:type", ""), t.get("operator", "")])
+    print("  sağlık:", len(hospitals), "hastane:", sum(1 for h in hospitals if h[3] == "hospital"),
+          "acil:", sum(1 for h in hospitals if h[4] == "yes"), flush=True)
+
+    p = os.path.join(outdir, f"static-{slug}.json")
+    try:
+        routes = gen_routes(area)
+    except Exception as e:
+        print("  hat verisi alınamadı, öncekiler korunuyor:", e, flush=True)
+        try:
+            routes = json.load(open(p, encoding="utf-8")).get("routes", [])
+        except Exception:
+            routes = []
+    out = {"city": name, "updated": datetime.date.today().isoformat(), "pharmacies": pharm, "hospitals": hospitals, "routes": routes}
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    print("  boyut:", round(os.path.getsize(p) / 1e6, 2), "MB", flush=True)
+
+
+def gen_routes(area):
+
     # Not: [maxsize] / büyük timeout istemek Overpass'ın sorguyu "yoğunluk" diye 504 ile reddetmesine yol açıyor.
     # Yollar ayrı ve tekil alınır (out geom her ilişkide ortak yolları tekrar ederdi).
     rels, ways, nodes = {}, {}, {}
@@ -160,11 +194,7 @@ def gen_city(slug, name, outdir):
     routes.sort(key=lambda x: (x["m"], len(x["ref"]), x["ref"], x["n"]))
     print("  yol:", len(ways), "düğüm:", len(nodes))
     print("  hat:", len(routes), "duraklı:", sum(1 for r in routes if r["s"]), flush=True)
-    out = {"city": name, "updated": datetime.date.today().isoformat(), "pharmacies": pharm, "routes": routes}
-    p = os.path.join(outdir, f"static-{slug}.json")
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
-    print("  boyut:", round(os.path.getsize(p) / 1e6, 2), "MB", flush=True)
+    return routes
 
 
 if __name__ == "__main__":

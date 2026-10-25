@@ -34,6 +34,52 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var loadJob: Job? = null
 
+    // ---- Deprem / kesinti ----
+    private val extras = ExtrasRepo()
+    var quakes by mutableStateOf<QuakeData?>(null); private set
+    var quakeError by mutableStateOf<String?>(null); private set
+    var loadingQuakes by mutableStateOf(false); private set
+    var outages by mutableStateOf<List<Outage>>(emptyList()); private set
+    var outageError by mutableStateOf<String?>(null); private set
+    var loadingOutages by mutableStateOf(false); private set
+    private var outageCity: City? = null
+
+    fun loadQuakes(force: Boolean = false) {
+        val q = quakes
+        if (!force && (loadingQuakes || (q != null && System.currentTimeMillis() - q.fetchedAt < 5 * 60_000))) return
+        viewModelScope.launch {
+            loadingQuakes = true; quakeError = null
+            runCatching { extras.quakes() }.onSuccess { quakes = it }.onFailure { quakeError = it.message }
+            loadingQuakes = false
+        }
+    }
+
+    fun loadOutages(force: Boolean = false) {
+        val c = city ?: return
+        if (!force && (loadingOutages || outageCity == c)) return
+        viewModelScope.launch {
+            loadingOutages = true; outageError = null
+            runCatching { extras.outages(c) }
+                .onSuccess { outages = it.distinct(); outageCity = c }
+                .onFailure { outageError = it.message; outages = emptyList() }
+            loadingOutages = false
+        }
+    }
+
+    fun distanceTo(lat: Double, lon: Double): Double? = location?.let { Geo.distance(it.latitude, it.longitude, lat, lon) }
+
+    /** Yakından uzağa sağlık kuruluşları. */
+    fun hospitals(emergencyOnly: Boolean): List<Pair<Hospital, Double?>> {
+        val hs = static?.hospitals ?: return emptyList()
+        val loc = location
+        return hs.asSequence()
+            .filter { !emergencyOnly || it.hasEmergency }
+            .map { it to loc?.let { l -> Geo.distance(l.latitude, l.longitude, it.lat, it.lon) } }
+            .sortedWith(compareBy<Pair<Hospital, Double?>, Double?>(nullsLast()) { it.second }
+                .thenBy { if (it.first.kind == "hospital") 0 else 1 })
+            .toList()
+    }
+
     init {
         city?.let { load(it) }
         viewModelScope.launch { while (isActive) { delay(60_000); tick++ } }
@@ -41,7 +87,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectCity(c: City) {
         prefs.edit().putString("city", c.slug).apply()
-        if (c != city) { static = null; duty = null; lines = emptyList() }
+        if (c != city) { static = null; duty = null; lines = emptyList(); outages = emptyList(); outageCity = null }
         city = c
         load(c)
     }
@@ -66,7 +112,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refresh() { city?.let { load(it, force = true) }; requestLocation() }
+    fun refresh() {
+        city?.let { load(it, force = true) }
+        requestLocation()
+        if (quakes != null) loadQuakes(force = true)
+        if (outageCity != null) loadOutages(force = true)
+    }
 
     fun requestLocation(onCity: ((City) -> Unit)? = null) {
         if (locating) return

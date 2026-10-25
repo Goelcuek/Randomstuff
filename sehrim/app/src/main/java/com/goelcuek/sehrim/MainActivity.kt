@@ -133,9 +133,11 @@ fun CityPicker(locating: Boolean, onPick: (City) -> Unit, onLocate: () -> Unit) 
 // ------------------------------------------------------------------ Ana ekran
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    PHARMACY("Eczaneler", Icons.Default.LocalPharmacy),
+    PHARMACY("Eczane", Icons.Default.LocalPharmacy),
+    HEALTH("Hastane", Icons.Default.LocalHospital),
     TRANSIT("Ulaşım", Icons.Default.DirectionsBus),
-    MAP("Harita", Icons.Default.Map),
+    OUTAGE("Kesinti", Icons.Default.Bolt),
+    QUAKE("Deprem", Icons.Default.Public),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,6 +146,21 @@ fun MainScreen(vm: AppViewModel, city: City, hasPerm: Boolean, askLocation: (((C
     var tab by rememberSaveable { mutableStateOf(Tab.PHARMACY) }
     var openLine by remember { mutableStateOf<Line?>(null) }
     var showCityDialog by remember { mutableStateOf(false) }
+    var showMap by rememberSaveable { mutableStateOf(false) }
+
+    if (showMap) {
+        BackHandler { showMap = false }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    navigationIcon = { IconButton(onClick = { showMap = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri") } },
+                    title = { Text("Harita · ${city.title}") },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                )
+            },
+        ) { pad -> Box(Modifier.padding(pad)) { FullMap(vm, city) } }
+        return
+    }
 
     openLine?.let { line ->
         BackHandler { openLine = null }
@@ -157,7 +174,7 @@ fun MainScreen(vm: AppViewModel, city: City, hasPerm: Boolean, askLocation: (((C
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Şehrim", fontWeight = FontWeight.Black, color = Brand)
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(8.dp))
                         AssistChip(
                             onClick = { showCityDialog = true },
                             label = { Text(city.title) },
@@ -167,6 +184,7 @@ fun MainScreen(vm: AppViewModel, city: City, hasPerm: Boolean, askLocation: (((C
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showMap = true }) { Icon(Icons.Default.Map, "Harita") }
                     IconButton(onClick = { askLocation(null) }) {
                         if (vm.locating) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         else Icon(if (vm.location != null) Icons.Default.MyLocation else Icons.Default.LocationSearching, "Konum")
@@ -179,7 +197,8 @@ fun MainScreen(vm: AppViewModel, city: City, hasPerm: Boolean, askLocation: (((C
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 Tab.entries.forEach { t ->
-                    NavigationBarItem(selected = tab == t, onClick = { tab = t }, icon = { Icon(t.icon, null) }, label = { Text(t.label) })
+                    NavigationBarItem(selected = tab == t, onClick = { tab = t }, icon = { Icon(t.icon, null) },
+                        label = { Text(t.label, maxLines = 1, fontSize = 11.sp) }, alwaysShowLabel = true)
                 }
             }
         },
@@ -189,7 +208,9 @@ fun MainScreen(vm: AppViewModel, city: City, hasPerm: Boolean, askLocation: (((C
             when (tab) {
                 Tab.PHARMACY -> PharmacyTab(vm, hasPerm) { askLocation(null) }
                 Tab.TRANSIT -> TransitTab(vm, hasPerm, onLocate = { askLocation(null) }, onOpen = { openLine = it })
-                Tab.MAP -> MapTab(vm, city)
+                Tab.HEALTH -> HospitalTab(vm, hasPerm) { askLocation(null) }
+                Tab.OUTAGE -> OutageTab(vm, city)
+                Tab.QUAKE -> QuakeTab(vm, city)
             }
         }
     }
@@ -595,39 +616,6 @@ fun LineDetail(vm: AppViewModel, city: City, line: Line, onBack: () -> Unit) {
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------ Harita
-
-@Composable
-fun MapTab(vm: AppViewModel, city: City) {
-    val list = remember(vm.duty, vm.static, vm.location, vm.tick) { vm.openPharmacies(includeRegular = true) }
-    var dutyOnly by rememberSaveable { mutableStateOf(false) }
-    val pins = remember(list, dutyOnly) {
-        list.filter { it.lat != null && (!dutyOnly || it.onDuty) }.map {
-            MapPin(it.lat!!, it.lon!!, it.name, listOf(if (it.onDuty) "Nöbetçi" else "Açık", Geo.fmt(it.distanceM), it.address).filter(String::isNotBlank).joinToString(" · "),
-                color = (if (it.onDuty) DutyColor else OpenColor).toArgb(), sizeDp = if (it.onDuty) 16 else 11)
-        }
-    }
-    val loc = vm.location
-    Box(Modifier.fillMaxSize()) {
-        OsmMap(
-            Modifier.fillMaxSize(), loc?.latitude ?: city.lat, loc?.longitude ?: city.lon, pins = pins,
-            me = loc?.let { it.latitude to it.longitude }, fitKey = "${city.slug}|${loc != null}", fitToContent = false,
-        )
-        Row(Modifier.align(Alignment.TopCenter).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = !dutyOnly, onClick = { dutyOnly = false }, label = { Text("Şu an açık (${list.size})") },
-                colors = FilterChipDefaults.filterChipColors(containerColor = Color.White))
-            FilterChip(selected = dutyOnly, onClick = { dutyOnly = true }, label = { Text("Nöbetçiler (${list.count { it.onDuty }})") },
-                colors = FilterChipDefaults.filterChipColors(containerColor = Color.White))
-        }
-        Surface(Modifier.align(Alignment.BottomStart).padding(12.dp), shape = RoundedCornerShape(12.dp), color = Color.White.copy(alpha = 0.92f)) {
-            Column(Modifier.padding(10.dp)) {
-                Legend(DutyColor, "Nöbetçi eczane"); Legend(OpenColor, "Açık eczane"); Legend(Color(0xFF1E88E5), "Konumunuz")
-                Text("© OpenStreetMap", fontSize = 10.sp, color = Color.Gray)
             }
         }
     }
