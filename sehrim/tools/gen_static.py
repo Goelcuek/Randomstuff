@@ -106,7 +106,7 @@ def addr(t):
 def gen_city(slug, name, outdir):
     print(f"== {name}", flush=True)
     area = f'area["name"="{name}"]["admin_level"="4"]["boundary"="administrative"]->.a;'
-    ph = overpass(f'[out:json][timeout:300];{area}nwr["amenity"="pharmacy"](area.a);out center tags;')
+    ph = overpass(f'[out:json][timeout:240];{area}nwr["amenity"="pharmacy"](area.a);out center tags;')
     pharm = []
     for e in ph["elements"]:
         t = e.get("tags", {})
@@ -116,28 +116,31 @@ def gen_city(slug, name, outdir):
                       addr(t), t.get("phone", t.get("contact:phone", ""))])
     print("  eczane:", len(pharm), "saatli:", sum(1 for p in pharm if p[3]), flush=True)
 
-    elements = []
-    for group in ("tram|light_rail|subway|train|ferry|monorail|funicular|aerialway", "bus|trolleybus|minibus|share_taxi"):
-        q = (f'[out:json][timeout:600][maxsize:2000000000];{area}'
-             f'rel["type"="route"]["route"~"^({group})$"](area.a)->.r;.r out geom;node(r.r);out tags;')
-        elements += overpass(q)["elements"]
-        time.sleep(10)
-    nodes = {e["id"]: e.get("tags", {}) for e in elements if e["type"] == "node"}
-    routes, seen = [], set()
-    for r in (e for e in elements if e["type"] == "relation"):
-        if r["id"] in seen: continue
-        seen.add(r["id"])
+    # Not: [maxsize] / büyük timeout istemek Overpass'ın sorguyu "yoğunluk" diye 504 ile reddetmesine yol açıyor.
+    # Yollar ayrı ve tekil alınır (out geom her ilişkide ortak yolları tekrar ederdi).
+    rels, ways, nodes = {}, {}, {}
+    for group in ("tram|light_rail|subway|train|ferry|monorail|funicular|aerialway", "bus|trolleybus", "minibus|share_taxi"):
+        q = (f'[out:json][timeout:300];{area}'
+             f'rel["type"="route"]["route"~"^({group})$"](area.a)->.r;'
+             f'.r out body;way(r.r);out skel geom;node(r.r);out;')
+        for e in overpass(q)["elements"]:
+            if e["type"] == "relation": rels[e["id"]] = e
+            elif e["type"] == "way" and e.get("geometry"): ways[e["id"]] = [(round(g["lat"], 6), round(g["lon"], 6)) for g in e["geometry"]]
+            elif e["type"] == "node": nodes[e["id"]] = e
+        time.sleep(15)
+    routes = []
+    for r in rels.values():
         t = r.get("tags", {})
-        stops, plats, ways = [], [], []
+        stops, plats, rways = [], [], []
         for m in r.get("members", []):
             role = m.get("role", "")
-            if m["type"] == "node" and "lat" in m:
-                nm = nodes.get(m["ref"], {}).get("name", "")
-                rec = [nm, round(m["lat"], 5), round(m["lon"], 5)]
+            if m["type"] == "node" and m["ref"] in nodes:
+                n = nodes[m["ref"]]
+                rec = [n.get("tags", {}).get("name", ""), round(n["lat"], 5), round(n["lon"], 5)]
                 if role in STOP_ROLES: stops.append(rec)
                 elif role in PLATFORM_ROLES: plats.append(rec)
-            elif m["type"] == "way" and role in ("", "forward", "backward", "main") and m.get("geometry"):
-                ways.append([(round(g["lat"], 6), round(g["lon"], 6)) for g in m["geometry"]])
+            elif m["type"] == "way" and role in ("", "forward", "backward", "main") and m["ref"] in ways:
+                rways.append(ways[m["ref"]])
         st = stops if stops else plats
         # durağın adı yoksa aynı sıradaki platformun adını kullan
         if stops and plats and len(stops) == len(plats):
@@ -148,13 +151,14 @@ def gen_city(slug, name, outdir):
         for s in st:
             if ded and s[0] and ded[-1][0] == s[0]: continue
             ded.append(s)
-        geom = [encode(simplify(l)) for l in chain(ways)]
+        geom = [encode(simplify(l)) for l in chain(rways)]
         routes.append({
             "id": r["id"], "m": t.get("route"), "ref": t.get("ref", ""), "n": t.get("name", ""),
             "f": t.get("from", ""), "t": t.get("to", ""), "o": t.get("operator", t.get("network", "")),
             "c": t.get("colour", ""), "s": ded, "g": geom,
         })
     routes.sort(key=lambda x: (x["m"], len(x["ref"]), x["ref"], x["n"]))
+    print("  yol:", len(ways), "düğüm:", len(nodes))
     print("  hat:", len(routes), "duraklı:", sum(1 for r in routes if r["s"]), flush=True)
     out = {"city": name, "updated": datetime.date.today().isoformat(), "pharmacies": pharm, "routes": routes}
     p = os.path.join(outdir, f"static-{slug}.json")

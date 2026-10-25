@@ -42,10 +42,10 @@ jobs:
           ls -la data
 
       - name: On-duty pharmacies
-        run: python3 sehrim/tools/gen_duty.py data
+        run: set -o pipefail; python3 sehrim/tools/gen_duty.py data 2>&1 | tee data/log-duty.txt
 
       - name: Publish duty data
-        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "duty-*.json"
+        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "duty-*.json" "log-duty.txt"
 
       - name: Transit routes + pharmacies (OpenStreetMap)
         id: static
@@ -56,9 +56,9 @@ jobs:
           hashFiles('data/static-istanbul.json') == '' ||
           hashFiles('data/static-ankara.json') == '' ||
           hashFiles('data/static-eskisehir.json') == ''
-        run: python3 sehrim/tools/gen_static.py data
+        run: set -o pipefail; python3 -u sehrim/tools/gen_static.py data 2>&1 | tee data/log-static.txt
 
 
       - name: Publish OSM data
         if: always() && steps.static.outcome != 'skipped'
-        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "static-*.json"
+        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "static-*.json" "log-static.txt"
