@@ -1,0 +1,28 @@
+== İstanbul
+  eczane: 5029 saatli: 1743
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Time-out
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Timeout
+HATA istanbul HTTP Error 504: Gateway Timeout
+== Ankara
+  eczane: 1802 saatli: 41
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 502: Bad Gateway
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Time-out
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 502: Bad Gateway
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 502: Bad Gateway
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Timeout
+HATA ankara HTTP Error 504: Gateway Timeout
+== Eskişehir
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 502: Bad Gateway
+  eczane: 304 saatli: 1
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 502: Bad Gateway
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 502: Bad Gateway
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://overpass-api.de/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://overpass.private.coffee/api/interpreter HTTP Error 504: Gateway Timeout
+  overpass hata https://maps.mail.ru/osm/tools/overpass/api/interpreter HTTP Error 504: Gateway Timeout
+HATA eskisehir HTTP Error 504: Gateway Timeout
