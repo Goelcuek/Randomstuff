@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Sehrim" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+    <color name="bg">#FFF6F4F0</color>
+    <color name="brand">#FFC8102E</color>
+</resources>

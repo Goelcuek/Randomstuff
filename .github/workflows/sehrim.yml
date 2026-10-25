@@ -1,0 +1,58 @@
+name: Build Şehrim APK
+
+on:
+  push:
+    paths:
+      - "sehrim/**"
+      - "!sehrim/tools/**"
+      - ".github/workflows/sehrim.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sehrim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Embed latest city data (offline fallback)
+        run: |
+          for c in istanbul ankara eskisehir; do
+            curl -sfL -o app/src/main/assets/static-$c.json \
+              "https://raw.githubusercontent.com/${{ github.repository }}/sehrim-data/static-$c.json" \
+              && echo "embedded $c" || echo "no data yet for $c"
+          done
+
+      - name: Build release APK
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk Sehrim.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sehrim-apk
+          path: sehrim/Sehrim.apk
+
+      - name: Publish release (direct download on the phone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sehrim-v${{ github.run_number }}
+          name: Şehrim v1.0.${{ github.run_number }}
+          body: Şehrim — İstanbul, Ankara, Eskişehir için hatlar ve açık/nöbetçi eczaneler. Telefona Sehrim.apk dosyasını kurun.
+          files: sehrim/Sehrim.apk
+          make_latest: true

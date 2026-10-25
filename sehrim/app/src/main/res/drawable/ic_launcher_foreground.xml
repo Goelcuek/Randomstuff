@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- skyline -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M30,74v-18h8v-6h6v24zM46,74v-30h10v30zM58,74v-22h6v-8h2v8h6v22z"/>
+    <!-- route line -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M28,80h52"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M36,80m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M72,80m-3.5,0a3.5,3.5 0,1 1,7 0a3.5,3.5 0,1 1,-7 0"/>
+    <!-- pharmacy cross -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M74,26h6v6h6v6h-6v6h-6v-6h-6v-6h6z"/>
+</vector>
