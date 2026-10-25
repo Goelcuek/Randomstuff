@@ -12,20 +12,14 @@ jobs:
       - run: |
           mkdir -p out
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
-          get() { curl -sSL -m 40 -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -o "out/$1" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" >> out/log.txt 2>&1 || echo "$1 FAIL" >> out/log.txt; }
-          get afad.json "https://deprem.afad.gov.tr/apiv2/event/filter?start=$(date -u -d '-2 day' +%Y-%m-%dT%H:%M:%S)&end=$(date -u +%Y-%m-%dT%H:%M:%S)&format=json"
-          get kandilli.html "http://www.koeri.boun.edu.tr/scripts/lst0.asp"
-          get orhan.json "https://api.orhanaydogdu.com.tr/deprem/kandilli/live"
-          get bedas.html "https://www.bedas.com.tr/planli-kesintiler"
-          get ayedas.html "https://www.ayedas.com.tr/planli-kesintiler"
-          get baskent.html "https://www.baskentedas.com.tr/planli-kesintiler"
-          get baskent2.html "https://www.baskentedas.com.tr/kesinti-sorgula"
-          get oedas.html "https://www.oedas.com.tr/planli-kesintiler"
-          get oedas2.html "https://www.oedas.com.tr/tr/planli-kesintiler"
-          get iski.html "https://iski.istanbul/abone-hizmetleri/ariza-kesinti/"
-          get aski.html "https://www.aski.gov.tr/tr/Kesinti.aspx"
-          get eski.html "https://www.eski.gov.tr/"
-          get eski2.html "https://www.eski.gov.tr/su-kesintileri"
+          get() { curl -sSL -m 25 -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -o "out/$1" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" >> out/log.txt 2>&1 || echo "$1 FAIL" >> out/log.txt; }
+          get eski-art.html "https://www.eski.gov.tr/15092026-tarihli-su-kesintisi"
+          get eski-home.html "https://www.eski.gov.tr/"
+          get bedas-map.html "https://kesinti.bedas.com.tr/"
+          curl -sS -m 25 -A "$UA" -H "Content-Type: application/json" -H "Origin: https://www.bedas.com.tr" -d '{}' -o out/bedas-getir.json -w "bedas-getir %{http_code} %{size_download}\n" https://www.bedas.com.tr/elektrik-getir >> out/log.txt 2>&1 || echo bedas-getir FAIL >> out/log.txt
+          get iski2.html "https://www.iski.istanbul/"
+          for site in ayedas baskentedas; do for pth in kesinti-sorgulama planli-kesinti planli-kesintiler kesintiler; do get $site-$pth.html "https://www.$site.com.tr/$pth"; done; done
+          get oedas.html "https://oedas.com.tr/"
           for f in out/*.html; do echo "== $f" >> out/scripts.txt; grep -oiE "(https?:)?//[a-z0-9./_-]*(api|kesinti|ariza|outage)[a-z0-9./_?=&-]*|['\"]/[a-z0-9/_-]*(api|kesinti|Kesinti|ariza)[a-zA-Z0-9/_.?=&-]*['\"]" "$f" | sort -u | head -40 >> out/scripts.txt; done
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
