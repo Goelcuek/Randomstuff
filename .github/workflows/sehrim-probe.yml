@@ -7,27 +7,18 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Probe sources
-        run: |
-          mkdir -p out
-          UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
-          get() { curl -sSL -m 60 -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -o "out/$1" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" >> out/log.txt 2>&1 || echo "$1 FAIL" >> out/log.txt; }
-          get ieo-main.js "https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/yeni/js/main.js"
-          get fanatik-ankara.html "https://www.fanatik.com.tr/nobetci-eczaneler/ankara/"
-          get hurriyet-ankara.html "https://www.hurriyet.com.tr/nobetci-eczane/ankara/"
-          get milliyet-ankara.html "https://www.milliyet.com.tr/nobetci-eczane/ankara/"
-          get sozcu-ankara.html "https://www.sozcu.com.tr/nobetci-eczane/ankara/"
-          get haberler-ankara.html "https://www.haberler.com/nobetci-eczane/ankara/"
-          get ntv-ankara.html "https://www.ntv.com.tr/nobetci-eczaneler/ankara"
-          get aeo2.html "https://aeo.org.tr/nobetci-eczaneler"
-          get aeo-api.html "https://www.aeo.org.tr/api/nobetci-eczaneler"
-          for ep in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
-            Q='[out:json][timeout:60];area["name"="Eskişehir"]["admin_level"="4"]->.a;relation["type"="route"]["route"~"^(bus|tram)$"](area.a);out tags 5;'
-            curl -sS -m 90 -A "Sehrim-app-datagen/1.0 (github.com/Goelcuek/Randomstuff)" -H "Accept: */*" --data-urlencode "data=$Q" -o out/ovp-$(echo $ep | cut -d/ -f3).json -w "ovp $ep %{http_code} %{size_download}\n" $ep >> out/log.txt 2>&1 || echo "ovp $ep FAIL" >> out/log.txt
-          done
+      - name: Duty
+        run: python3 tools/gen_duty.py out 2>&1 | tee out-duty.log
+      - name: Static
+        run: python3 tools/gen_static.py out 2>&1 | tee out-static.log
+      - name: Extra
+        run: curl -sSL -m 60 -A "Mozilla/5.0" -o out/ieo-api.js https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/yeni/js/api.js || true
       - name: Commit
+        if: always()
         run: |
           git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p out; mv out-*.log out/ || true
           git add out && git commit -qm "probe results" && git push
