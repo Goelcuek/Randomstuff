@@ -13,33 +13,20 @@ jobs:
         run: |
           mkdir -p out
           UA="Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
-          for s in istanbul ankara eskisehir; do
-            curl -sSL -m 40 -A "$UA" -o out/egt-$s.html -w "egt-$s %{http_code} %{size_download}\n" "https://www.eczaneler.gen.tr/nobetci-$s" >> out/log.txt 2>&1 || echo "egt-$s FAIL" >> out/log.txt
+          get() { curl -sSL -m 60 -A "$UA" -H "Accept-Language: tr-TR,tr;q=0.9" -o "out/$1" -w "$1 %{http_code} %{size_download} %{url_effective}\n" "$2" >> out/log.txt 2>&1 || echo "$1 FAIL" >> out/log.txt; }
+          get ieo-main.js "https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/yeni/js/main.js"
+          get fanatik-ankara.html "https://www.fanatik.com.tr/nobetci-eczaneler/ankara/"
+          get hurriyet-ankara.html "https://www.hurriyet.com.tr/nobetci-eczane/ankara/"
+          get milliyet-ankara.html "https://www.milliyet.com.tr/nobetci-eczane/ankara/"
+          get sozcu-ankara.html "https://www.sozcu.com.tr/nobetci-eczane/ankara/"
+          get haberler-ankara.html "https://www.haberler.com/nobetci-eczane/ankara/"
+          get ntv-ankara.html "https://www.ntv.com.tr/nobetci-eczaneler/ankara"
+          get aeo2.html "https://aeo.org.tr/nobetci-eczaneler"
+          get aeo-api.html "https://www.aeo.org.tr/api/nobetci-eczaneler"
+          for ep in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://overpass.private.coffee/api/interpreter; do
+            Q='[out:json][timeout:60];area["name"="Eskişehir"]["admin_level"="4"]->.a;relation["type"="route"]["route"~"^(bus|tram)$"](area.a);out tags 5;'
+            curl -sS -m 90 -A "Sehrim-app-datagen/1.0 (github.com/Goelcuek/Randomstuff)" -H "Accept: */*" --data-urlencode "data=$Q" -o out/ovp-$(echo $ep | cut -d/ -f3).json -w "ovp $ep %{http_code} %{size_download}\n" $ep >> out/log.txt 2>&1 || echo "ovp $ep FAIL" >> out/log.txt
           done
-          curl -sSL -m 40 -A "$UA" -o out/aeo.html -w "aeo %{http_code} %{size_download}\n" "https://www.aeo.org.tr/nobetci-eczaneler" >> out/log.txt 2>&1 || echo aeoFAIL >> out/log.txt
-          curl -sSL -m 40 -A "$UA" -o out/eeo.html -w "eeo %{http_code} %{size_download}\n" "https://www.eskisehireo.org.tr/eskisehir-nobetci-eczaneler" >> out/log.txt 2>&1 || echo eeoFAIL >> out/log.txt
-          curl -sSL -m 40 -A "$UA" -o out/ieo.html -w "ieo %{http_code} %{size_download}\n" "https://www.istanbuleczaciodasi.org.tr/nobetci-eczane/" >> out/log.txt 2>&1 || echo ieoFAIL >> out/log.txt
-          curl -sSL -m 60 -A "$UA" -o out/ibb-gtfs.json -w "ibbgtfs %{http_code} %{size_download}\n" "https://data.ibb.gov.tr/api/3/action/package_search?q=gtfs" >> out/log.txt 2>&1 || echo ibbFAIL >> out/log.txt
-          for c in "İstanbul" "Ankara" "Eskişehir"; do
-            Q="[out:json][timeout:180];area[\"name\"=\"$c\"][\"admin_level\"=\"4\"]->.a;(relation[\"type\"=\"route\"][\"route\"~\"^(bus|trolleybus|minibus|share_taxi|tram|light_rail|subway|train|ferry|monorail|funicular)$\"](area.a););out tags;"
-            curl -sS -m 200 --data-urlencode "data=$Q" -o "out/routes-$c.json" -w "routes-$c %{http_code} %{size_download}\n" https://overpass-api.de/api/interpreter >> out/log.txt 2>&1 || echo "routes $c FAIL" >> out/log.txt
-            Q2="[out:json][timeout:180];area[\"name\"=\"$c\"][\"admin_level\"=\"4\"]->.a;(nwr[\"amenity\"=\"pharmacy\"](area.a););out center tags;"
-            curl -sS -m 200 --data-urlencode "data=$Q2" -o "out/ph-$c.json" -w "ph-$c %{http_code} %{size_download}\n" https://overpass-api.de/api/interpreter >> out/log.txt 2>&1 || echo "ph $c FAIL" >> out/log.txt
-          done
-          python3 - <<'PY' >> out/log.txt
-          import json,glob,collections
-          for f in sorted(glob.glob('out/routes-*.json'))+sorted(glob.glob('out/ph-*.json')):
-              try:
-                  d=json.load(open(f)); el=d['elements']
-                  if 'routes' in f:
-                      c=collections.Counter(e['tags'].get('route') for e in el)
-                      ops=collections.Counter(e['tags'].get('operator','?') for e in el)
-                      print(f,len(el),dict(c),ops.most_common(6))
-                  else:
-                      oh=sum(1 for e in el if 'opening_hours' in e['tags'])
-                      print(f,len(el),'with_oh',oh)
-              except Exception as ex: print(f,'ERR',ex)
-          PY
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
