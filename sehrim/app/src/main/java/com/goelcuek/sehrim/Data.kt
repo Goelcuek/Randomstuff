@@ -88,7 +88,7 @@ class Repo(private val ctx: Context) {
 
     suspend fun loadDuty(city: City, forceRefresh: Boolean = false): DutyData = withContext(Dispatchers.IO) {
         val f = cacheFile("duty-${city.slug}.json")
-        val wanted = Hours.currentDutyDate().toString()
+        val wanted = Hours.currentDutyDate(city).toString()
         if (!forceRefresh && f.exists()) {
             runCatching {
                 val d = dutyFromJson(JSONObject(f.readText()))
@@ -149,11 +149,12 @@ class Repo(private val ctx: Context) {
                 lon = c?.groupValues?.get(2)?.toDoubleOrNull(),
             )
         }
-        val date = parseTurkishDate(info) ?: Hours.currentDutyDate().toString()
+        val date = parseTurkishDate(info) ?: Hours.currentDutyDate(city).toString()
         return DutyData("fanatik.com.tr", info, date, System.currentTimeMillis(), items)
     }
 
     private fun scrapeEskisehirEo(): DutyData {
+        val city = City.ESKISEHIR
         val t = http("https://www.eskisehireo.org.tr/eskisehir-nobetci-eczaneler")
         var window = ""
         val items = t.split("class=\"col-md-12 nobetci\"").drop(1).mapNotNull { blk ->
@@ -171,7 +172,7 @@ class Repo(private val ctx: Context) {
             )
         }
         val date = Regex("""(\d{2})\.(\d{2})\.(\d{4})""").find(window)?.destructured?.let { (d, mo, y) -> "$y-$mo-$d" }
-            ?: Hours.currentDutyDate().toString()
+            ?: Hours.currentDutyDate(city).toString()
         return DutyData("eskisehireo.org.tr (yalnızca merkez)", if (window.isNotEmpty()) "$window nöbetçi" else "", date, System.currentTimeMillis(), items)
     }
 

@@ -16,7 +16,6 @@ object Hours {
     val TZ: ZoneId = ZoneId.of("Europe/Istanbul")
     private val DEFAULT_OPEN = LocalTime.of(8, 30)
     private val DEFAULT_CLOSE = LocalTime.of(19, 0)
-    val DUTY_CHANGE: LocalTime = LocalTime.of(8, 30)
 
     // Resmi tatiller (tam gün). Arife yarım günleri normal gün sayılır.
     private val HOLIDAYS: Set<LocalDate> = setOf(
@@ -35,8 +34,8 @@ object Hours {
     fun isHoliday(d: LocalDate) = d in HOLIDAYS
 
     /** Şu anki nöbetin başladığı gün (08:30'dan önceyse dün). */
-    fun currentDutyDate(t: LocalDateTime = now()): LocalDate =
-        if (t.toLocalTime() < DUTY_CHANGE) t.toLocalDate().minusDays(1) else t.toLocalDate()
+    fun currentDutyDate(city: City, t: LocalDateTime = now()): LocalDate =
+        if (t.toLocalTime() < city.dutyChange) t.toLocalDate().minusDays(1) else t.toLocalDate()
 
     /** Normal (nöbetçi olmayan) eczane şu an açık mı? null = bilinmiyor. */
     fun isOpen(openingHours: String, t: LocalDateTime = now()): Boolean? {
@@ -96,7 +95,7 @@ object Hours {
                 }
             }
         }
-        if (!matchedAny) return if (holiday) false else false
+        if (!matchedAny) return false
         return result
     }
 

@@ -104,13 +104,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val now = Hours.now()
         val out = ArrayList<OpenPharmacy>()
         val d = duty
-        val dutyValid = d != null && d.dutyDate == Hours.currentDutyDate(now).toString()
+        val c = city ?: return emptyList()
+        val dutyValid = d != null && d.dutyDate == Hours.currentDutyDate(c, now).toString()
+        val until = c.dutyChange.toString()
         if (d != null) {
             for (p in d.items) {
                 out += OpenPharmacy(
                     p.name, listOf(p.address, p.district).filter { it.isNotBlank() }.joinToString(" · "), p.phone,
                     p.lat, p.lon, onDuty = true,
-                    hoursNote = if (dutyValid) "Nöbetçi · sabah 08:30'a kadar" else "Nöbet listesi güncel olmayabilir",
+                    hoursNote = if (dutyValid) "Nöbetçi · sabah $until'a kadar" else "Nöbet listesi güncel olmayabilir",
                     distanceM = if (loc != null && p.lat != null && p.lon != null) Geo.distance(loc.latitude, loc.longitude, p.lat, p.lon) else null,
                 )
             }

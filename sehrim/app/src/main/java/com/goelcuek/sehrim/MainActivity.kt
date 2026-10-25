@@ -242,7 +242,7 @@ fun PharmacyTab(vm: AppViewModel, hasPerm: Boolean, onLocate: () -> Unit) {
             StatusCard(
                 title = "${now.format(DateTimeFormatter.ofPattern("HH:mm"))} · $day${if (holiday) " (resmi tatil)" else ""}",
                 body = if (regularOpen) "Normal çalışma saatleri: eczanelerin çoğu açık. Nöbetçiler ayrıca işaretli."
-                else "Şu an normal eczaneler kapalı. Açık olanlar nöbetçi eczaneler (sabah 08:30'a kadar).",
+                else "Şu an normal eczaneler kapalı. Açık olanlar nöbetçi eczaneler (sabah ${vm.city?.dutyChange ?: "08:30"}'a kadar).",
                 good = regularOpen,
             )
         }
@@ -281,7 +281,7 @@ fun PharmacyTab(vm: AppViewModel, hasPerm: Boolean, onLocate: () -> Unit) {
         vm.dutyError?.let { e -> item { ErrorRow(e) } }
         if (!dutyOnly && vm.loadingStatic && vm.static == null) item { LoadingRow("Eczane haritası yükleniyor…") }
         vm.duty?.let { d ->
-            if (d.dutyDate != Hours.currentDutyDate(now).toString()) item {
+            if (d.dutyDate != Hours.currentDutyDate(vm.city ?: City.ISTANBUL, now).toString()) item {
                 ErrorRow("Kaynaktaki nöbet listesi ${d.dutyDate} tarihli; bugünün listesi henüz yayımlanmamış olabilir.")
             }
         }

@@ -1,9 +1,13 @@
 package com.goelcuek.sehrim
 
-enum class City(val slug: String, val title: String, val lat: Double, val lon: Double, val fanatikSlug: String) {
-    ISTANBUL("istanbul", "İstanbul", 41.0082, 28.9784, "istanbul"),
-    ANKARA("ankara", "Ankara", 39.9334, 32.8597, "ankara"),
-    ESKISEHIR("eskisehir", "Eskişehir", 39.7767, 30.5206, "eskisehir");
+enum class City(
+    val slug: String, val title: String, val lat: Double, val lon: Double, val fanatikSlug: String,
+    /** Nöbet değişim saati (İstanbul Eczacı Odası 09:00, diğerleri 08:30). */
+    val dutyChange: java.time.LocalTime,
+) {
+    ISTANBUL("istanbul", "İstanbul", 41.0082, 28.9784, "istanbul", java.time.LocalTime.of(9, 0)),
+    ANKARA("ankara", "Ankara", 39.9334, 32.8597, "ankara", java.time.LocalTime.of(8, 30)),
+    ESKISEHIR("eskisehir", "Eskişehir", 39.7767, 30.5206, "eskisehir", java.time.LocalTime.of(8, 30));
 
     companion object {
         fun of(slug: String?) = entries.firstOrNull { it.slug == slug }
