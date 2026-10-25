@@ -369,11 +369,11 @@ fun PharmacyCard(p: OpenPharmacy) {
                     ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${p.phone}")))
                 }) { Icon(Icons.Default.Call, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Ara") }
                 if (p.lat != null && p.lon != null) Button(onClick = {
-                    val uri = Uri.parse("google.navigation:q=${p.lat},${p.lon}&mode=w")
-                    val nav = Intent(Intent.ACTION_VIEW, uri)
-                    val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${p.lat},${p.lon}?q=${p.lat},${p.lon}(${Uri.encode(p.name)})"))
-                    runCatching { ctx.startActivity(nav) }.onFailure { runCatching { ctx.startActivity(geo) } }
-                }) { Icon(Icons.Default.Directions, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Yol tarifi") }
+                    // Konumu haritaya ver; ulaşım şeklini (yürüme/araç/toplu taşıma) kullanıcı seçsin
+                    val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=${p.lat},${p.lon}(${Uri.encode(p.name)})"))
+                    val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}"))
+                    runCatching { ctx.startActivity(geo) }.onFailure { runCatching { ctx.startActivity(web) } }
+                }) { Icon(Icons.Default.Directions, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Haritada aç") }
             }
         }
     }

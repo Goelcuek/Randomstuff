@@ -53,7 +53,7 @@ class Repo(private val ctx: Context) {
         }
         if (f.exists()) runCatching { return@withContext parseStatic(f.readText()) }
         val asset = runCatching { ctx.assets.open("static-${city.slug}.json").bufferedReader().use { it.readText() } }.getOrNull()
-            ?: throw RuntimeException("Şehir verisi indirilemedi. İnternet bağlantınızı kontrol edin.")
+            ?: throw RuntimeException("Hat verisi henüz hazır değil ya da indirilemedi. Biraz sonra yenile (↻) düğmesine basın.")
         parseStatic(asset)
     }
 
