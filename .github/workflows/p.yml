@@ -1,4 +1,4 @@
-name: Sehrim pages check
+name: Sehrim live check
 on:
   push:
     branches: [sehrim-probe2]
@@ -9,15 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          mkdir -p out
-          for i in $(seq 1 16); do
-            c=$(curl -s -o out/page.html -w "%{http_code}" -m 20 https://goelcuek.github.io/Randomstuff/sehrim/)
-            echo "$(date -u +%T) $c" >> out/log.txt
-            [ "$c" = "200" ] && break; sleep 20
-          done
-          curl -s -o /dev/null -w "root %{http_code}\n" https://goelcuek.github.io/Randomstuff/ >> out/log.txt
-          curl -s -o /dev/null -w "app.js %{http_code}\n" https://goelcuek.github.io/Randomstuff/sehrim/app.js >> out/log.txt
-      - run: |
+      - run: npm i playwright@1.47.2 >/dev/null 2>&1 && npx playwright install --with-deps chromium >/dev/null 2>&1
+      - run: mkdir -p out && node live.js
+      - if: always()
+        run: |
           git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
           git add out && git commit -qm "probe results" && git push origin HEAD:sehrim-probe2
