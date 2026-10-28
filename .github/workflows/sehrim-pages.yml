@@ -37,4 +37,4 @@ jobs:
           [ -f index.html ] || printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=sehrim/"><title>Şehrim</title><a href="sehrim/">Şehrim</a>\n' > index.html
           git add -A
           git commit -qm "Şehrim web ${GITHUB_SHA::7}" || { echo "değişiklik yok"; exit 0; }
-          git push -q "$URL" HEAD:gh-pages
+          git push -qf "$URL" HEAD:gh-pages
