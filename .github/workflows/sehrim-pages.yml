@@ -1,0 +1,40 @@
+name: Şehrim website → GitHub Pages
+
+# sehrim/web içeriğini gh-pages dalının sehrim/ klasörüne kopyalar.
+# Site: https://goelcuek.github.io/Randomstuff/sehrim/
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sehrim/web/**"
+      - ".github/workflows/sehrim-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sehrim-pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update gh-pages
+        run: |
+          set -e
+          W=$(mktemp -d)
+          git init -q -b gh-pages "$W"
+          cd "$W"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 "$URL" gh-pages; then git archive FETCH_HEAD | tar -x; fi
+          rm -rf sehrim && mkdir sehrim && cp -r "$GITHUB_WORKSPACE"/sehrim/web/. sehrim/
+          touch .nojekyll
+          [ -f index.html ] || printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=sehrim/"><title>Şehrim</title><a href="sehrim/">Şehrim</a>\n' > index.html
+          git add -A
+          git commit -qm "Şehrim web ${GITHUB_SHA::7}" || { echo "değişiklik yok"; exit 0; }
+          git push -q "$URL" HEAD:gh-pages

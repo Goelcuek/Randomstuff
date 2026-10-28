@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Şehrim – şehir başına sabit veri üretir: eczaneler + toplu taşıma hatları (OpenStreetMap / Overpass)."""
-import json, sys, os, time, math, datetime, socket, urllib.request, urllib.parse
+import json, re, sys, os, time, math, datetime, socket, urllib.request, urllib.parse
 
 # overpass-api.de'ye IPv6 ile bağlanmak runner'larda ~30 sn takılıyor: IPv4'e zorla
 _gai = socket.getaddrinfo
@@ -112,6 +112,7 @@ def gen_city(slug, name, outdir):
         t = e.get("tags", {})
         lat = e.get("lat", e.get("center", {}).get("lat")); lon = e.get("lon", e.get("center", {}).get("lon"))
         if lat is None: continue
+        if re.search(r"watsons|gratis|rossmann|kozmetik|parf[üu]m|flormar|medikal|optik|aktar|herbal", t.get("name", ""), re.I): continue
         pharm.append([t.get("name", "Eczane"), round(lat, 6), round(lon, 6), t.get("opening_hours", ""),
                       addr(t), t.get("phone", t.get("contact:phone", ""))])
     print("  eczane:", len(pharm), "saatli:", sum(1 for p in pharm if p[3]), flush=True)
