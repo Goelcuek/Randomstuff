@@ -1,0 +1,23 @@
+=== https://raw.githubusercontent.com/Goelcuek/Randomstuff/sehrim-data/duty-ankara.json
+HTTP/2 200 
+cache-control: max-age=300
+access-control-allow-origin: *
+=== https://servisnet.afad.gov.tr/apigateway/deprem/apiv2/event/filter?start=2026-10-27T14:55:44&end=2026-10-28T14:55:44&format=json
+HTTP/1.1 200 OK
+Cache-Control: no-cache
+=== https://deprem.afad.gov.tr/apiv2/event/filter?start=2026-10-27T14:55:44&end=2026-10-28T14:55:44&format=json
+HTTP/1.0 302 Moved Temporarily
+=== https://api.orhanaydogdu.com.tr/deprem/kandilli/live?limit=5
+HTTP/2 200 
+access-control-allow-origin: *
+=== https://www.fanatik.com.tr/nobetci-eczaneler/ankara/
+HTTP/2 200 
+cache-control: public, max-age=30, s-maxage=120, stale-if-error=86400
+access-control-allow-headers: *
+access-control-allow-origin: *
+=== https://goelcuek.github.io/Border-Atlas/
+HTTP/2 200 
+access-control-allow-origin: *
+cache-control: max-age=600
+=== https://goelcuek.github.io/Randomstuff/
+HTTP/2 404 
