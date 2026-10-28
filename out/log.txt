@@ -1,0 +1,15 @@
+200 https://raw.githubusercontent.com/Goelcuek/Randomstuff/sehrim-data/static-ankara.json
+200 https://www.fanatik.com.tr/nobetci-eczaneler/ankara/
+board: Botanica
+source: Nöbet listesi: fanatik.com.tr, 28 Ekim Çarşamba akşamından 29 Ekim Perşembe sabahına kadar..
+    Eczane konumları ve saa
+200 https://raw.githubusercontent.com/Goelcuek/Randomstuff/sehrim-data/quakes-afad.json
+200 https://api.orhanaydogdu.com.tr/deprem/kandilli/live?limit=500
+FAIL https://b.tile.openstreetmap.org/12/2422/1551.png net::ERR_ABORTED
+FAIL https://c.tile.openstreetmap.org/12/2421/1550.png net::ERR_ABORTED
+FAIL https://a.tile.openstreetmap.org/12/2422/1550.png net::ERR_ABORTED
+FAIL https://c.tile.openstreetmap.org/12/2422/1552.png net::ERR_ABORTED
+quake note: Kaynak: AFAD ve Kandilli. AFAD verisi saatlik kopyalanır, en yeni depremler Kandilli Rasathanesi'nde
+200 https://www.fanatik.com.tr/nobetci-eczaneler/istanbul/
+200 https://raw.githubusercontent.com/Goelcuek/Randomstuff/sehrim-data/static-istanbul.json
+ist count: 4902 eczane, yakından uzağa
