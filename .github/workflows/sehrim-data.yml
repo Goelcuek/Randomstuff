@@ -5,6 +5,9 @@ name: Şehrim data
 on:
   schedule:
     - cron: "17 * * * *"
+    # nöbet değişiminden hemen sonra (Ankara/Eskişehir 08:30, İstanbul 09:00 TSİ)
+    - cron: "38 5 * * *"
+    - cron: "8 6 * * *"
     - cron: "41 2 * * 1"
   push:
     branches: [main]
@@ -44,14 +47,18 @@ jobs:
       - name: On-duty pharmacies
         run: set -o pipefail; python3 sehrim/tools/gen_duty.py data 2>&1 | tee data/log-duty.txt
 
+      - name: Earthquakes (AFAD) + Ankara water outages (ASKİ)
+        continue-on-error: true
+        run: python3 sehrim/tools/gen_extra.py data
+
       - name: Publish duty data
-        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "duty-*.json" "log-duty.txt"
+        run: bash sehrim/tools/publish.sh "${{ secrets.GITHUB_TOKEN }}" "${{ github.repository }}" "duty-*.json" "log-duty.txt" "quakes-afad.json" "outages-ankara.json"
 
       - name: Transit routes + pharmacies (OpenStreetMap)
         id: static
         if: >-
           github.event.schedule == '41 2 * * 1' ||
-          github.event_name == 'push' ||
+          (github.event_name == 'push' && contains(join(github.event.commits.*.modified, ' '), 'gen_static')) ||
           (github.event_name == 'workflow_dispatch' && inputs.static) ||
           hashFiles('data/static-istanbul.json') == '' ||
           hashFiles('data/static-ankara.json') == '' ||
