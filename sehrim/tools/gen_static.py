@@ -112,7 +112,10 @@ def gen_city(slug, name, outdir):
         t = e.get("tags", {})
         lat = e.get("lat", e.get("center", {}).get("lat")); lon = e.get("lon", e.get("center", {}).get("lon"))
         if lat is None: continue
-        if re.search(r"watsons|gratis|rossmann|kozmetik|parf[üu]m|flormar|medikal|optik|aktar|herbal", t.get("name", ""), re.I): continue
+        nm0 = t.get("name", "")
+        if re.search(r"ecza deposu", nm0, re.I) or (not re.search(r"ecz|ezcane|ecane", nm0, re.I) and re.search(
+                r"watsons|gratis|rossmann|botanica|kozmetik|parf[üu]m|flormar|medikal|ortopedi|optik|aktar|herbal|otel|hotel|belediye|sağlık merkezi|üniversite|^su-sa|^mo-", nm0, re.I)):
+            continue
         pharm.append([t.get("name", "Eczane"), round(lat, 6), round(lon, 6), t.get("opening_hours", ""),
                       addr(t), t.get("phone", t.get("contact:phone", ""))])
     print("  eczane:", len(pharm), "saatli:", sum(1 for p in pharm if p[3]), flush=True)

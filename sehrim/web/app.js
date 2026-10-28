@@ -285,7 +285,8 @@ function groupLines(routes) {
 
 /* ---------------- derived lists ---------------- */
 // OSM'de amenity=pharmacy olarak etiketlenmiş kozmetik/medikal mağazalar
-const NOT_PHARMACY = /watsons|gratis|rossmann|kozmetik|parf[üu]m|flormar|medikal|optik|aktar|herbal|sağlık ürünleri/i;
+const NOT_PHARMACY_RE = /watsons|gratis|rossmann|botanica|kozmetik|parf[üu]m|flormar|medikal|ortopedi|optik|aktar|herbal|sağlık ürünleri|ecza deposu|otel|hotel|belediye|sağlık merkezi|üniversite|^su-sa|^mo-/i;
+const NOT_PHARMACY = { test: (n) => /ecza deposu/i.test(n) || (!/ecz|ezcane|ecane/i.test(n) && NOT_PHARMACY_RE.test(n)) };
 function openPharmacies(includeRegular) {
   const c = S.city, t = nowTR(), out = [];
   const d = S.duty[c];
