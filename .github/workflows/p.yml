@@ -1,4 +1,4 @@
-name: Sehrim probe 4
+name: Sehrim pages check
 on:
   push:
     branches: [sehrim-probe2]
@@ -11,18 +11,13 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           mkdir -p out
-          O="Origin: https://goelcuek.github.io"
-          for u in \
-            "https://raw.githubusercontent.com/Goelcuek/Randomstuff/sehrim-data/duty-ankara.json" \
-            "https://servisnet.afad.gov.tr/apigateway/deprem/apiv2/event/filter?start=$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%S)&end=$(date -u +%Y-%m-%dT%H:%M:%S)&format=json" \
-            "https://deprem.afad.gov.tr/apiv2/event/filter?start=$(date -u -d '-1 day' +%Y-%m-%dT%H:%M:%S)&end=$(date -u +%Y-%m-%dT%H:%M:%S)&format=json" \
-            "https://api.orhanaydogdu.com.tr/deprem/kandilli/live?limit=5" \
-            "https://www.fanatik.com.tr/nobetci-eczaneler/ankara/" \
-            "https://goelcuek.github.io/Border-Atlas/" \
-            "https://goelcuek.github.io/Randomstuff/" ; do
-            echo "=== $u" >> out/log.txt
-            curl -sS -m 30 -o /dev/null -D - -H "$O" -A "Mozilla/5.0" "$u" 2>&1 | grep -iE "^HTTP|access-control|content-encoding|cache-control" >> out/log.txt || echo FAIL >> out/log.txt
+          for i in $(seq 1 16); do
+            c=$(curl -s -o out/page.html -w "%{http_code}" -m 20 https://goelcuek.github.io/Randomstuff/sehrim/)
+            echo "$(date -u +%T) $c" >> out/log.txt
+            [ "$c" = "200" ] && break; sleep 20
           done
+          curl -s -o /dev/null -w "root %{http_code}\n" https://goelcuek.github.io/Randomstuff/ >> out/log.txt
+          curl -s -o /dev/null -w "app.js %{http_code}\n" https://goelcuek.github.io/Randomstuff/sehrim/app.js >> out/log.txt
       - run: |
           git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
           git add out && git commit -qm "probe results" && git push origin HEAD:sehrim-probe2
