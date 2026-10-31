@@ -1,0 +1,45 @@
+== Eskişehir
+  overpass ok overpass-api.de 0.1 MB 32 s
+  eczane: 304 saatli: 1
+  overpass hata overpass-api.de 1 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 0.0 MB 31 s
+  sağlık: 29 hastane: 15 acil: 10
+  overpass ok overpass-api.de 2.8 MB 30 s
+  overpass hata overpass-api.de 1 s: HTTP Error 502: Bad Gateway
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 0.0 MB 40 s
+  overpass ok overpass-api.de 0.0 MB 44 s
+  yol: 2447 düğüm: 144
+  hat: 27 duraklı: 5
+  boyut: 0.14 MB
+== Ankara
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 0.4 MB 43 s
+  eczane: 1802 saatli: 41
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass hata overpass-api.de 1 s: HTTP Error 502: Bad Gateway
+  overpass hata overpass-api.de 1 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 0.1 MB 43 s
+  sağlık: 332 hastane: 130 acil: 64
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 4.8 MB 46 s
+  overpass hata overpass-api.de 1 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 12.9 MB 42 s
+  overpass ok overpass-api.de 0.0 MB 46 s
+  yol: 12206 düğüm: 6411
+  hat: 385 duraklı: 344
+  boyut: 1.38 MB
+== İstanbul
+  overpass ok overpass-api.de 1.8 MB 30 s
+  eczane: 5029 saatli: 1743
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 0.4 MB 43 s
+  sağlık: 978 hastane: 379 acil: 169
+  overpass ok overpass-api.de 4.0 MB 40 s
+  overpass hata overpass-api.de 0 s: HTTP Error 502: Bad Gateway
+  overpass ok overpass-api.de 44.7 MB 42 s
+  overpass ok overpass-api.de 0.0 MB 36 s
+  yol: 30914 düğüm: 13930
+  hat: 1734 duraklı: 1412
+  boyut: 3.98 MB

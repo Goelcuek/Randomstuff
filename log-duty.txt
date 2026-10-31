@@ -1,0 +1,3 @@
+istanbul fanatik.com.tr 135 no-coord: 0 | 30 Ekim Cuma akşamından 31 Ekim Cumartesi sabahına kadar. | []
+ankara fanatik.com.tr 47 no-coord: 0 | 31 Ekim Cumartesi akşamından 01 Kasım Pazar sabahına kadar. | []
+eskisehir fanatik.com.tr 14 no-coord: 0 | 30 Ekim Cuma akşamından 31 Ekim Cumartesi sabahına kadar. | []
